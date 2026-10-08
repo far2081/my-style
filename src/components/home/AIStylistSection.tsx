@@ -35,10 +35,11 @@ export const AIStylistSection: React.FC = () => {
   const [aiProviderStatus, setAiProviderStatus] = useState<string>('AI Engine Ready');
   const [matchPercentage, setMatchPercentage] = useState<number>(96);
   const [recommendationReason, setRecommendationReason] = useState<string>('');
+  const [geminiRecommendedProduct, setGeminiRecommendedProduct] = useState<any>(null);
 
   const handleCreateLook = async () => {
     setStep('processing');
-    setAiProviderStatus('Running Gemini 1.5 Pro fashion intelligence & catalog analysis...');
+    setAiProviderStatus('Running Gemini 1.5 Flash fashion intelligence & catalog analysis...');
 
     try {
       if (photoSelected) {
@@ -46,19 +47,25 @@ export const AIStylistSection: React.FC = () => {
         await aiProviders.vision.analyzeImage({ imageFileOrUrl: photoSelected });
       }
 
-      const stylistRes = await aiProviders.stylist.analyzeAndRecommend({
-        preferences: {
-          occasion: selectedOccasion,
-          event: selectedEvent,
-          colors: preferredColors,
-          dressType,
-          bodyStructure,
-          budget,
-          style: styleVibe,
+      const stylistRes = await (aiProviders.stylist as any).analyzeAndRecommend(
+        {
+          preferences: {
+            occasion: selectedOccasion,
+            event: selectedEvent,
+            colors: preferredColors,
+            dressType,
+            bodyStructure,
+            budget,
+            style: styleVibe,
+          },
+          userPhotoUrl: photoSelected || undefined,
         },
-        userPhotoUrl: photoSelected || undefined,
-      });
+        products
+      );
 
+      if (stylistRes?.primaryRecommendation) {
+        setGeminiRecommendedProduct(stylistRes.primaryRecommendation);
+      }
       const topMatch = stylistRes.topLooks[0]?.matchScore || 96;
       setMatchPercentage(topMatch);
       setRecommendationReason(stylistRes.curatedAdvice);
@@ -69,6 +76,8 @@ export const AIStylistSection: React.FC = () => {
   };
 
   const recommendedProduct = React.useMemo(() => {
+    if (geminiRecommendedProduct) return geminiRecommendedProduct;
+
     const scored = products.map((p) => {
       let score = 0;
       if (p.occasion.toLowerCase() === selectedOccasion.toLowerCase()) score += 25;
@@ -80,7 +89,7 @@ export const AIStylistSection: React.FC = () => {
     });
     scored.sort((a, b) => b.score - a.score);
     return scored[0]?.product || products[0];
-  }, [products, selectedOccasion, preferredColors, season, dressType]);
+  }, [geminiRecommendedProduct, products, selectedOccasion, preferredColors, season, dressType]);
 
 
   return (

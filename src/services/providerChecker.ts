@@ -270,15 +270,65 @@ export class ProviderChecker {
   }
 
   /**
+   * Test Cloudflare Workers AI (Image Generation for Dress Studio)
+   */
+  async testCloudflare(): Promise<{ status: ProviderStatus; message?: string }> {
+    if (!this.hasKey('CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_TOKEN') && !this.hasKey('VITE_CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_TOKEN')) {
+      return {
+        status: 'NOT CONFIGURED',
+        message: 'Missing CLOUDFLARE_API_TOKEN in environment variables.',
+      };
+    }
+
+    const token = getEnvKey('VITE_CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_TOKEN');
+    const accountId = getEnvKey('VITE_CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_ACCOUNT_ID');
+
+    if (!accountId) {
+      return {
+        status: 'NOT CONFIGURED',
+        message: 'Missing CLOUDFLARE_ACCOUNT_ID in environment variables.',
+      };
+    }
+
+    try {
+      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 200) {
+        return { status: 'CONNECTED' };
+      } else if (response.status === 401 || response.status === 403) {
+        return {
+          status: 'INVALID CREDENTIAL',
+          message: 'Cloudflare API token verification failed with 401/403.',
+        };
+      } else {
+        return {
+          status: 'PROVIDER ERROR',
+          message: `Cloudflare returned status ${response.status}`,
+        };
+      }
+    } catch (err: any) {
+      return {
+        status: 'PROVIDER UNAVAILABLE',
+        message: err.message || 'Failed to reach Cloudflare API endpoint.',
+      };
+    }
+  }
+
+  /**
    * Get complete status report across all 9 providers
    */
   async getFullReport(): Promise<ProviderReport[]> {
     const timestamp = new Date().toISOString();
 
-    const [supabaseRes, geminiRes, replicateRes, runwayRes, emailRes, stripeRes] =
+    const [supabaseRes, geminiRes, cloudflareRes, replicateRes, runwayRes, emailRes, stripeRes] =
       await Promise.all([
         this.testSupabase(),
         this.testGemini(),
+        this.testCloudflare(),
         this.testReplicate(),
         this.testRunway(),
         this.testEmail(),
@@ -357,14 +407,14 @@ export class ProviderChecker {
       },
       {
         id: 'dress-gen',
-        name: 'Google Imagen 3 Generative Diffusion Engine',
-        feature: 'AI Dress Studio Bespoke Concepts',
-        configured: geminiRes.status === 'CONNECTED',
-        missing: geminiRes.status === 'NOT CONFIGURED',
-        requiredEnvVars: ['GEMINI_API_KEY'],
-        status: geminiRes.status,
+        name: 'Cloudflare Workers AI (Flux Schnell / SDXL)',
+        feature: 'AI Dress Studio Bespoke Concept Generation',
+        configured: cloudflareRes.status === 'CONNECTED',
+        missing: cloudflareRes.status === 'NOT CONFIGURED',
+        requiredEnvVars: ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'],
+        status: cloudflareRes.status,
         lastTestedAt: timestamp,
-        errorMessage: geminiRes.message,
+        errorMessage: cloudflareRes.message,
       },
       {
         id: 'email',

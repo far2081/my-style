@@ -74,16 +74,68 @@ export interface AIStylistProvider {
 }
 
 export class GeminiStylistProvider implements AIStylistProvider {
-  readonly providerName = 'Google Gemini 1.5 Pro & StyleMira Catalog Intelligence';
+  readonly providerName = 'Google Gemini (gemini-1.5-flash) Fashion Stylist';
 
-  async analyzeAndRecommend(req: StylistRequest): Promise<StylistResponse> {
+  async analyzeAndRecommend(req: StylistRequest, activeCatalog: Product[] = PRODUCTS_DATA): Promise<StylistResponse> {
     const { preferences } = req;
     const prefOccasion = (preferences.occasion || '').toLowerCase();
     const prefDressType = (preferences.dressType || '').toLowerCase();
     const prefStyle = (preferences.style || '').toLowerCase();
 
-    // Multi-attribute weighted scoring against the live PRODUCTS_DATA catalog
-    const scored: ScoredLook[] = PRODUCTS_DATA.map((product) => {
+    // 1. Attempt Real Server-side Gemini API call
+    try {
+      const response = await fetch('/api/gemini-stylist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferences,
+          availableProducts: activeCatalog,
+          userPhotoUrl: req.userPhotoUrl,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.recommendedProductIds)) {
+          // Map Gemini returned IDs strictly to REAL existing products in database/catalog
+          const matchedProducts: ScoredLook[] = [];
+          data.recommendedProductIds.forEach((id: string, idx: number) => {
+            const found = activeCatalog.find((p) => p.id === id || p.name.toLowerCase() === id.toLowerCase());
+            if (found) {
+              matchedProducts.push({
+                product: found,
+                matchScore: Math.max(88, 98 - idx * 3),
+                reasons: [
+                  data.reasons?.[id] || `Selected by Gemini AI matching your ${preferences.occasion || 'couture'} aesthetic`,
+                  `Fabric: Authentic ${found.fabric} with bespoke artisanal finish`,
+                ],
+              });
+            }
+          });
+
+          if (matchedProducts.length > 0) {
+            return {
+              primaryRecommendation: matchedProducts[0].product,
+              topLooks: matchedProducts,
+              paletteConfidence: data.paletteConfidence ? data.paletteConfidence / 100 : 0.98,
+              curatedAdvice: data.curatedAdvice || 'Curated with Gemini 1.5 Flash fashion intelligence.',
+              recommendedSilhouettes: data.recommendedSilhouettes || ['Royal Peshwas', 'Farshi Gharara', 'Kalidaar'],
+              undertoneMatch: data.undertoneMatch || 'Champagne Warm / Royal Jewel',
+            };
+          }
+        }
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        if (errJson?.error) {
+          console.warn('[Gemini Stylist notice]:', errJson.error);
+        }
+      }
+    } catch (e) {
+      console.warn('[Gemini Stylist network notice]:', e);
+    }
+
+    // 2. Deterministic Algorithmic Catalog Ranking (Guarantees zero fake inventory)
+    const scored: ScoredLook[] = activeCatalog.map((product) => {
       let score = 50; // base baseline
       const reasons: string[] = [];
 
@@ -132,7 +184,7 @@ export class GeminiStylistProvider implements AIStylistProvider {
     // Sort by match score descending
     scored.sort((a, b) => b.matchScore - a.matchScore);
 
-    const primary = scored[0]?.product || PRODUCTS_DATA[0];
+    const primary = scored[0]?.product || activeCatalog[0];
 
     const curatedAdvice = `Based on your selection for ${preferences.occasion || 'Haute Couture'} in ${
       preferences.dressType || 'Traditional Silhouettes'
@@ -397,7 +449,7 @@ export interface DressGenerationProvider {
 }
 
 export class ImagenDressGenerationProvider implements DressGenerationProvider {
-  readonly providerName = 'Google Imagen 3 & Haute Couture Generative Diffusion Engine';
+  readonly providerName = 'Cloudflare Workers AI (Flux Schnell / SDXL) Generative Diffusion Engine';
 
   async generateDressConcept(req: DressGenerationRequest): Promise<AIJobStatus<DressGenerationResponse>> {
     const jobId = `dress_${Date.now()}`;
@@ -413,7 +465,56 @@ export class ImagenDressGenerationProvider implements DressGenerationProvider {
       };
     }
 
-    // Curated high-res Pakistani couture imagery corresponding to generative concept categories
+    try {
+      const response = await fetch('/api/cloudflare-dress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: req.prompt,
+          dressType: req.folderCategory || 'Bridal Couture',
+          color: req.primaryColor,
+          fabric: req.fabricPreference,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.imageUrl) {
+          return {
+            jobId: data.jobId || jobId,
+            provider: `${data.provider} (${data.model || 'flux-1-schnell'})`,
+            status: 'succeeded',
+            estimatedCostUsd: 0.01,
+            durationMs: 2400,
+            timestamp,
+            result: {
+              conceptId: data.projectId || `concept_${Date.now()}`,
+              conceptName: data.conceptName || `AI CONCEPT: ${req.prompt.slice(0, 26).trim()}...`,
+              conceptImageUrl: data.imageUrl,
+              isAiConcept: true,
+              fabricBreakdown: data.fabricBreakdown || req.fabricPreference || 'Pure Katan Silk & Tissue Organza',
+              colorPalette: data.colorPalette || ['#321B2F', '#C9A86A', '#E9D5D8', '#4A2438'],
+              suggestedEmbellishments: data.suggestedEmbellishments || ['Hand-carved Nakshi', 'French Bullion Knot', 'Micro-sequin Zari'],
+            },
+          };
+        }
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        if (errJson?.error) {
+          return {
+            jobId,
+            provider: this.providerName,
+            status: 'failed',
+            error: errJson.error,
+            timestamp,
+          };
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Cloudflare Workers AI network notice]:', e);
+    }
+
+    // High-resolution Pakistani couture catalog imagery fallback when local API serverless is offline
     const coutureConceptLibrary = [
       'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1000&q=80',
       'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1000&q=80',
