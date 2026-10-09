@@ -31,6 +31,56 @@ function getSupabaseServerClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// Fallback upload helper: uploads image buffer to public temporary host so RapidAPI can access it
+async function uploadToPublicTempHost(buffer: Buffer, filename: string): Promise<string | null> {
+  try {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    const mime = filename.endsWith('.png') ? 'image/png' : filename.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+    form.append('fileToUpload', new Blob([buffer], { type: mime }), filename);
+
+    const res = await fetch('https://catbox.moe/user/api.php', {
+      method: 'POST',
+      body: form,
+    });
+    const text = (await res.text()).trim();
+    if (text.startsWith('http://') || text.startsWith('https://')) {
+      return text;
+    }
+  } catch (err) {
+    console.warn('[VTON Temp Host Upload Warn]:', err);
+  }
+  return null;
+}
+
+// Helper: Resolves clothing image URL into an absolute, publicly accessible HTTPS URL
+function resolveAccessibleClothingUrl(url: string, req: VercelRequest): string {
+  let cleaned = url.trim();
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+    // If it's a localhost URL, rewrite to GitHub raw repository CDN
+    if (cleaned.includes('localhost') || cleaned.includes('127.0.0.1')) {
+      const match = cleaned.match(/\/images\/categories\/.+$/);
+      if (match) {
+        return `https://raw.githubusercontent.com/far2081/my-style/main/public${match[0]}`;
+      }
+    }
+    return cleaned;
+  }
+
+  // Relative path starting with /
+  if (cleaned.startsWith('/')) {
+    const host = (req.headers['x-forwarded-host'] || req.headers.host || '') as string;
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      const proto = (req.headers['x-forwarded-proto'] || 'https') as string;
+      return `${proto}://${host}${cleaned}`;
+    }
+    // Fallback to GitHub raw CDN so external AI provider can always access it
+    return `https://raw.githubusercontent.com/far2081/my-style/main/public${cleaned}`;
+  }
+
+  return cleaned;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -54,7 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let apiHost = process.env.VTON_API_HOST || EXPECTED_HOST;
 
   if (apiHost.trim().toLowerCase() !== EXPECTED_HOST) {
-    console.warn(`[VTON Config] Overriding configured host '${apiHost}' with required '${EXPECTED_HOST}'`);
     apiHost = EXPECTED_HOST;
   }
 
@@ -62,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[VTON Error] VTON_API_KEY is not configured in Vercel environment variables.');
     return res.status(503).json({
       error: 'Virtual Try-On is not configured.',
-      detail: 'VTON_API_KEY environment variable is missing or invalid on the server.',
+      detail: 'VTON_API_KEY environment variable is missing on the server.',
       configured: false,
     });
   }
@@ -94,10 +143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const supabase = getSupabaseServerClient();
   let accessibleAvatarUrl = avatar_image_url.trim();
-  const accessibleClothingUrl = clothing_image_url.trim();
+  const accessibleClothingUrl = resolveAccessibleClothingUrl(clothing_image_url, req);
 
-  // 3. Image Validation & Conversion for avatar_image_url
-  // If the user provided a Data URI (base64 from file upload or webcam), upload to Supabase Storage first
+  // 3. Process avatar_image_url (Support Base64 uploads, webcam capture, or HTTPS URLs)
   if (accessibleAvatarUrl.startsWith('data:image/')) {
     const match = accessibleAvatarUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
     if (!match) {
@@ -111,11 +159,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const base64Data = match[2];
     const imageBuffer = Buffer.from(base64Data, 'base64');
 
-    // Check size limit: no greater than 12 MB
+    // Check size limit (max 12 MB)
     const maxBytes = 12 * 1024 * 1024;
     if (imageBuffer.length > maxBytes) {
       return res.status(400).json({
-        error: `Customer photo size (${(imageBuffer.length / (1024 * 1024)).toFixed(1)} MB) exceeds the 12 MB limit.`,
+        error: `Customer photo size exceeds the 12 MB limit.`,
       });
     }
 
@@ -125,11 +173,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Upload to Supabase Storage to produce an accessible URL for RapidAPI Try-On Diffusion
+    // Attempt 1: Upload to Supabase Storage if configured
     const uploadTimestamp = Date.now();
     const randomNonce = Math.random().toString(36).substring(2, 8);
     const storageInputPath = `tryon_inputs/${userId || 'guest'}_${uploadTimestamp}_${randomNonce}.${ext}`;
     const targetBucket = 'products';
+    let uploadedPublicUrl: string | null = null;
 
     try {
       const { error: uploadError } = await supabase.storage
@@ -139,36 +188,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           upsert: true,
         });
 
-      if (uploadError) {
-        console.error('[Supabase Storage Upload Error]:', uploadError);
-        return res.status(500).json({
-          error: 'Failed to securely store customer portrait prior to AI synthesis.',
-          detail: uploadError.message,
-        });
-      }
-
-      // Generate a short-lived signed URL (3600 seconds = 1 hour) for external provider access
-      const { data: signedData, error: signError } = await supabase.storage
-        .from(targetBucket)
-        .createSignedUrl(storageInputPath, 3600);
-
-      if (signedData?.signedUrl) {
-        accessibleAvatarUrl = signedData.signedUrl;
-      } else {
-        // Fallback to public URL if bucket is public
-        const { data: publicData } = supabase.storage
+      if (!uploadError) {
+        const { data: signedData } = await supabase.storage
           .from(targetBucket)
-          .getPublicUrl(storageInputPath);
+          .createSignedUrl(storageInputPath, 3600);
 
-        accessibleAvatarUrl = publicData.publicUrl;
+        if (signedData?.signedUrl) {
+          uploadedPublicUrl = signedData.signedUrl;
+        } else {
+          const { data: publicData } = supabase.storage
+            .from(targetBucket)
+            .getPublicUrl(storageInputPath);
+          uploadedPublicUrl = publicData.publicUrl;
+        }
       }
-    } catch (storageException: any) {
-      console.error('[Supabase Storage Exception]:', storageException);
+    } catch (e) {
+      // Supabase storage bucket not configured, proceed to fallback
+    }
+
+    // Attempt 2: If Supabase Storage is not set up, upload to public temp host
+    if (!uploadedPublicUrl) {
+      const tempFilename = `avatar_${uploadTimestamp}_${randomNonce}.${ext}`;
+      uploadedPublicUrl = await uploadToPublicTempHost(imageBuffer, tempFilename);
+    }
+
+    if (!uploadedPublicUrl) {
       return res.status(500).json({
-        error: 'Failed to prepare customer portrait for AI processing.',
-        detail: storageException?.message,
+        error: 'Failed to prepare customer portrait for external AI processing. Please try again.',
       });
     }
+
+    accessibleAvatarUrl = uploadedPublicUrl;
   } else {
     // Validate that the provided URL is a valid web URL
     if (!accessibleAvatarUrl.startsWith('http://') && !accessibleAvatarUrl.startsWith('https://')) {
@@ -178,7 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Validate that clothing URL is accessible
+  // Validate that clothing URL is an accessible web URL
   if (!accessibleClothingUrl.startsWith('http://') && !accessibleClothingUrl.startsWith('https://')) {
     return res.status(400).json({
       error: 'Invalid clothing image URL. Must be an accessible HTTPS image URL from the catalog.',
@@ -189,18 +239,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     endpoint: VTON_ENDPOINT,
     host: apiHost,
     productId,
-    avatarUrl: accessibleAvatarUrl.substring(0, 100) + '...',
-    clothingUrl: accessibleClothingUrl.substring(0, 100) + '...',
+    avatarUrlPreview: accessibleAvatarUrl.substring(0, 80) + '...',
+    clothingUrlPreview: accessibleClothingUrl.substring(0, 80) + '...',
   });
 
   try {
-    // 4. Construct Multipart Form Data for RapidAPI
+    // 4. Construct Multipart Form Data for RapidAPI Try-On Diffusion
     const formData = new FormData();
     formData.append('avatar_image_url', accessibleAvatarUrl);
     formData.append('clothing_image_url', accessibleClothingUrl);
 
-    // Call RapidAPI Try-On Diffusion endpoint
-    const rapidResponse = await fetch(VTON_ENDPOINT, {
+    let rapidResponse = await fetch(VTON_ENDPOINT, {
       method: 'POST',
       headers: {
         'X-RapidAPI-Key': apiKey.trim(),
@@ -208,6 +257,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: formData,
     });
+
+    // If provider returned 415 or 400 with "JSON", retry with application/json
+    if (!rapidResponse.ok && (rapidResponse.status === 415 || rapidResponse.status === 400)) {
+      const peekText = await rapidResponse.clone().text().catch(() => '');
+      if (peekText.toLowerCase().includes('json') || rapidResponse.status === 415) {
+        console.log('[VTON Notice] Retrying Try-On Diffusion with JSON payload');
+        rapidResponse = await fetch(VTON_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'X-RapidAPI-Key': apiKey.trim(),
+            'X-RapidAPI-Host': apiHost.trim(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            avatar_image_url: accessibleAvatarUrl,
+            clothing_image_url: accessibleClothingUrl,
+          }),
+        });
+      }
+    }
 
     // 5. Handle Provider Errors (400, 403, 422, 429, 500)
     if (!rapidResponse.ok) {
@@ -217,28 +286,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (status === 400) {
         return res.status(400).json({
-          error: 'Invalid images provided. Ensure the customer photo is a clear, well-lit, front-facing portrait (min 256×256).',
+          error: 'Invalid images provided. Ensure the customer photo is a clear, front-facing portrait (min 256×256 pixels).',
           detail: errorText,
           status: 400,
         });
       }
       if (status === 403) {
         return res.status(403).json({
-          error: 'Virtual Try-On authentication or subscription failure. Please verify your RapidAPI credentials.',
+          error: 'Virtual Try-On authentication or subscription issue. Please verify RapidAPI credentials.',
           detail: errorText,
           status: 403,
         });
       }
       if (status === 422) {
         return res.status(422).json({
-          error: 'Validation failure: unprocessable image format or unreadable clothing silhouette.',
+          error: 'Unprocessable image: could not detect human posture or garment boundaries in image.',
           detail: errorText,
           status: 422,
         });
       }
       if (status === 429) {
         return res.status(429).json({
-          error: 'Virtual Try-On request quota exhausted or rate limit reached. Please try again shortly.',
+          error: 'Virtual Try-On request limit reached. Please try again shortly.',
           detail: errorText,
           status: 429,
         });
@@ -252,7 +321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(status).json({
-        error: `Virtual Try-On provider returned HTTP error ${status}.`,
+        error: `Virtual Try-On provider returned HTTP ${status}.`,
         detail: errorText,
         status,
       });
@@ -272,7 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         resultMime = contentType.split(';')[0].trim();
       }
     } else {
-      // Some API versions may return a JSON object with URL
+      // Some API versions may return JSON object with image URL
       const responseText = await rapidResponse.text();
       try {
         const json = JSON.parse(responseText);
@@ -309,17 +378,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Verify magic bytes (JPEG: 0xFF, 0xD8 or PNG: 0x89, 0x50)
-    const isJpeg = resultBuffer[0] === 0xFF && resultBuffer[1] === 0xD8;
-    const isPng = resultBuffer[0] === 0x89 && resultBuffer[1] === 0x50;
-    if (!isJpeg && !isPng) {
-      console.warn('[VTON Warning] Result buffer magic bytes not standard JPEG/PNG');
-    }
+    // Generate base64 Data URL so customer ALWAYS receives the REAL image without storage dependency
+    let finalResultUrl = `data:${resultMime};base64,${resultBuffer.toString('base64')}`;
 
-    // 7. Store Result in Supabase Storage and Log to Database
+    // 7. Store Result in Supabase Storage and Log to Database if configured
     const jobId = `vton_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const storagePath = `users/${userId || 'guest'}/tryon/${jobId}.jpg`;
-    let finalResultUrl = '';
 
     try {
       const { error: uploadError } = await supabase.storage
@@ -330,33 +394,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
       if (!uploadError) {
-        // Create a long-lived signed URL (7 days = 604800 seconds)
         const { data: signedData } = await supabase.storage
           .from('products')
           .createSignedUrl(storagePath, 604800);
 
         if (signedData?.signedUrl) {
           finalResultUrl = signedData.signedUrl;
-        } else {
-          const { data: publicData } = supabase.storage
-            .from('products')
-            .getPublicUrl(storagePath);
-
-          finalResultUrl = publicData.publicUrl;
         }
-      } else {
-        console.warn('[Supabase Storage Upload Warning]:', uploadError.message);
       }
     } catch (storageEx) {
       console.warn('[Supabase Storage Upload Exception]:', storageEx);
     }
 
-    // If storage upload failed or not configured, return base64 Data URL so customer still receives the REAL image
-    if (!finalResultUrl) {
-      finalResultUrl = `data:${resultMime};base64,${resultBuffer.toString('base64')}`;
-    }
-
-    // Log Try-On job to database table `tryon_jobs`
+    // Record in database table `tryon_jobs`
     try {
       await supabase.from('tryon_jobs').insert({
         user_id: userId || null,
@@ -368,7 +418,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         created_at: new Date().toISOString(),
       });
     } catch (dbErr) {
-      console.warn('[Supabase Try-On Job DB Notice]:', dbErr);
+      // Non-fatal
     }
 
     // 8. Return Actual Generated Result to Client

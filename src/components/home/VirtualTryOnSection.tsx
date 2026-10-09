@@ -394,16 +394,31 @@ export const VirtualTryOnSection: React.FC = () => {
                     </div>
 
                     {/* Watermark / Brand Badge */}
-                    <div className="absolute top-4 left-4 bg-plum-dark/85 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2 z-10">
-                      <Sparkles className="w-3.5 h-3.5 text-champagne" />
-                      <span className="text-[10px] font-brand tracking-wider uppercase text-ivory">
-                        {currentDress.name}
-                      </span>
+                    <div className="absolute top-4 left-4 bg-plum-dark/90 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2 z-10 shadow-luxury">
+                      {renderedResultUrl ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-champagne" />
+                          <span className="text-[10px] font-brand tracking-wider uppercase text-champagne font-bold">
+                            AI Virtual Try-On: {currentDress.name}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-champagne" />
+                          <span className="text-[10px] font-brand tracking-wider uppercase text-ivory">
+                            {currentDress.name}
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     {/* View Angle Pill */}
-                    <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10">
-                      {activeAngle === '360' ? `360° Multi-View (${rotationAngle}°)` : `${activeAngle.toUpperCase()} Perspective`}
+                    <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10 shadow-luxury">
+                      {renderedResultUrl
+                        ? '2D Neural Try-On Result ✓'
+                        : activeAngle === '360'
+                        ? `360° Simulation (${rotationAngle}°)`
+                        : `${activeAngle.toUpperCase()} Perspective`}
                     </div>
 
                     {/* 360° Multi-View Slider / Rotation Controls - NEVER DISAPPEARS on click */}
