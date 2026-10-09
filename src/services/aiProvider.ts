@@ -328,35 +328,34 @@ export class ReplicateVTONProvider implements TryOnProvider {
         }
       } else {
         const errJson = await response.json().catch(() => ({}));
-        if (errJson?.error) {
-          return {
-            jobId,
-            provider: this.providerName,
-            status: 'failed',
-            error: errJson.error,
-            timestamp,
-          };
-        }
+        return {
+          jobId,
+          provider: this.providerName,
+          status: 'failed',
+          error:
+            errJson?.error ||
+            errJson?.detail ||
+            `Virtual Try-On failed with status ${response.status}.`,
+          timestamp,
+        };
       }
     } catch (e: any) {
-      console.warn('[VTON network notice]:', e);
+      console.error('[VTON network exception]:', e);
+      return {
+        jobId,
+        provider: this.providerName,
+        status: 'failed',
+        error: e?.message || 'Network error connecting to Virtual Try-On API.',
+        timestamp,
+      };
     }
 
-    // Default fallback to catalog garment visualization if serverless function is unavailable locally
     return {
       jobId,
-      provider: 'RapidAPI Try-On Diffusion (Local Preview)',
-      status: 'succeeded',
-      estimatedCostUsd: 0.035,
-      durationMs: 1840,
+      provider: this.providerName,
+      status: 'failed',
+      error: 'Virtual Try-On API did not return a valid result.',
       timestamp,
-      result: {
-        renderedImageUrl: req.garmentImageUrl,
-        fitAssessment:
-          'Precision silhouette drape calibrated against customer shoulder width, bust contours, and flare radius.',
-        confidenceScore: 0.98,
-        drapePhysics: 'Heavy silk falling drape with calibrated zardozi weight resistance at hemline.',
-      },
     };
   }
 }

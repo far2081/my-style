@@ -7,61 +7,6 @@ import { Sparkles, Camera, Upload, RotateCw, Check, ArrowRight, Eye, Layers, X }
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
 
-// Helper to synthesize client-side photorealistic drape composite if local preview
-async function createTryOnComposite(userPhotoUrl: string, dressPhotoUrl: string): Promise<string> {
-  return new Promise((resolve) => {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 800;
-      canvas.height = 1066;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve(userPhotoUrl || dressPhotoUrl);
-
-      const userImg = new Image();
-      userImg.crossOrigin = 'anonymous';
-
-      userImg.onload = () => {
-        // Deep Plum background
-        ctx.fillStyle = '#2A1425';
-        ctx.fillRect(0, 0, 800, 1066);
-
-        // Draw customer portrait
-        ctx.drawImage(userImg, 0, 0, 800, 1066);
-
-        const dressImg = new Image();
-        dressImg.crossOrigin = 'anonymous';
-        dressImg.onload = () => {
-          // Overlay couture garment drape on lower body
-          ctx.save();
-          ctx.globalAlpha = 0.88;
-          ctx.drawImage(dressImg, 0, 360, 800, 706);
-          ctx.restore();
-
-          // Luxury Atelier watermark ribbon
-          ctx.fillStyle = 'rgba(50, 27, 47, 0.85)';
-          ctx.fillRect(0, 1010, 800, 56);
-          ctx.fillStyle = '#C9A86A';
-          ctx.font = 'bold 14px sans-serif';
-          ctx.fillText('STYLEMIRA AI • BESPOKE COUTURE FIT SIMULATION', 24, 1044);
-
-          resolve(canvas.toDataURL('image/jpeg', 0.92));
-        };
-        dressImg.onerror = () => {
-          resolve(userImg.src);
-        };
-        dressImg.src = dressPhotoUrl;
-      };
-
-      userImg.onerror = () => {
-        resolve(userPhotoUrl);
-      };
-      userImg.src = userPhotoUrl;
-    } catch {
-      resolve(userPhotoUrl || dressPhotoUrl);
-    }
-  });
-}
-
 export const VirtualTryOnSection: React.FC = () => {
   const { tryOnProduct, setTryOnProduct, addToCart, products, customerPhoto, setCustomerPhoto } = useApp();
 
@@ -131,21 +76,13 @@ export const VirtualTryOnSection: React.FC = () => {
     });
 
     setIsGenerating(false);
-    if (res.status === 'failed' && res.error) {
+    if (res.status === 'failed' || !res.result?.renderedImageUrl) {
       setJobStatus('failed');
-      setTryOnError(res.error);
+      setTryOnError(res.error || 'Virtual Try-On generation failed. Please check provider connection.');
     } else {
       setJobStatus('completed');
       setTryOnGenerated(true);
-
-      // If serverless returned an external try-on image, use it
-      if (res.result?.renderedImageUrl && res.result.renderedImageUrl !== currentDress.images.front) {
-        setRenderedResultUrl(res.result.renderedImageUrl);
-      } else if (photoToUse) {
-        // Combine customer portrait with the dress to preserve the customer's actual uploaded face!
-        const compositeUrl = await createTryOnComposite(photoToUse, currentDress.images.front);
-        setRenderedResultUrl(compositeUrl);
-      }
+      setRenderedResultUrl(res.result.renderedImageUrl);
     }
   };
 
@@ -155,10 +92,9 @@ export const VirtualTryOnSection: React.FC = () => {
     setJobStatus('idle');
   };
 
-  // Base image: always preserve the same look! Never switch to another person's photo.
+  // Base image: always preserve the actual generated result or catalog dress
   const getDisplayedImage = () => {
     if (renderedResultUrl) return renderedResultUrl;
-    if (tryOnGenerated && customerPhoto) return customerPhoto;
     return currentDress.images.front;
   };
 
