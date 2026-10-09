@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -55,12 +55,23 @@ export const CartDrawer: React.FC = () => {
               YOUR WARDROBE ({cart.length})
             </h3>
           </div>
-          <button
-            onClick={() => setIsCartOpen(false)}
-            className="p-2 text-ivory/70 hover:text-champagne transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCartOpen(false)}
+              className="inline-flex items-center gap-1.5 text-xs text-champagne bg-plum/60 hover:bg-burgundy px-3 py-1.5 rounded-xl border border-champagne/30 transition-colors font-brand uppercase tracking-wider"
+              title="Back to Shopping"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
+            <button
+              onClick={() => setIsCartOpen(false)}
+              className="p-2 text-ivory/70 hover:text-champagne transition-colors"
+              aria-label="Close cart"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Cart Item List */}

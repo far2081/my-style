@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from './ImageWithFallback';
-import { X, Sparkles, RotateCw, ShoppingBag, Check } from 'lucide-react';
+import { X, Sparkles, RotateCw, ShoppingBag, Check, ArrowLeft } from 'lucide-react';
 
 export const TryOnModal: React.FC = () => {
   const { isTryOnModalOpen, setIsTryOnModalOpen, tryOnProduct, addToCart } = useApp();
@@ -38,12 +38,22 @@ export const TryOnModal: React.FC = () => {
               <h3 className="font-editorial text-2xl font-bold uppercase">{dress.name}</h3>
             </div>
           </div>
-          <button
-            onClick={() => setIsTryOnModalOpen(false)}
-            className="p-2 text-ivory/70 hover:text-champagne transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsTryOnModalOpen(false)}
+              className="inline-flex items-center gap-1.5 text-xs text-champagne bg-plum/60 hover:bg-burgundy px-3 py-1.5 rounded-xl border border-champagne/30 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <button
+              onClick={() => setIsTryOnModalOpen(false)}
+              className="p-2 text-ivory/70 hover:text-champagne transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* View Switchers */}

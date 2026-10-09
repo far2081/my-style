@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ImageWithFallback } from '../common/ImageWithFallback';
-import { X, Sparkles, Heart, ShoppingBag, Eye, ShieldCheck, Ruler, ArrowRight, Check } from 'lucide-react';
+import { X, Sparkles, Heart, ShoppingBag, Eye, ShieldCheck, Ruler, ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import { Product } from '../../types';
 
 export const ProductDetailModal: React.FC = () => {
@@ -65,14 +65,24 @@ export const ProductDetailModal: React.FC = () => {
 
       {/* Modal Dialog Content */}
       <div className="relative bg-plum-dark border border-champagne/40 rounded-3xl max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl p-6 sm:p-10 text-ivory z-10">
-        {/* Close Button */}
-        <button
-          onClick={() => setSelectedProduct(null)}
-          className="absolute top-5 right-5 p-2 rounded-full bg-plum/80 text-ivory/80 hover:text-champagne hover:bg-burgundy border border-champagne/20 transition-colors"
-          aria-label="Close modal"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Modal Top Bar with Back and Close */}
+        <div className="flex items-center justify-between pb-4 mb-6 border-b border-champagne/20">
+          <button
+            onClick={() => setSelectedProduct(null)}
+            className="inline-flex items-center gap-2 text-xs font-brand uppercase tracking-wider text-champagne hover:text-ivory bg-plum/70 hover:bg-burgundy px-3.5 py-1.5 rounded-xl border border-champagne/30 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 text-champagne" />
+            <span>Back to Collection</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedProduct(null)}
+            className="p-2 rounded-full bg-plum/80 text-ivory/80 hover:text-champagne hover:bg-burgundy border border-champagne/20 transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left: Large Image Gallery with Views (7 cols) */}

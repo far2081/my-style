@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
-import { Search, X, ArrowRight, Sparkles } from 'lucide-react';
+import { Search, X, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
 
 export const SearchModal: React.FC = () => {
   const { isSearchOpen, setIsSearchOpen, searchQuery, setSearchQuery, setSelectedProduct, products } = useApp();
@@ -40,9 +40,19 @@ export const SearchModal: React.FC = () => {
             <Search className="w-4 h-4" />
             <span>Search StyleMira AI Catalog</span>
           </div>
-          <button onClick={() => setIsSearchOpen(false)}>
-            <X className="w-5 h-5 text-ivory/70 hover:text-champagne" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSearchOpen(false)}
+              className="inline-flex items-center gap-1.5 text-xs text-champagne bg-plum/60 hover:bg-burgundy px-2.5 py-1 rounded-xl border border-champagne/30 transition-colors font-brand uppercase tracking-wider"
+              title="Back"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
+            <button onClick={() => setIsSearchOpen(false)} aria-label="Close search">
+              <X className="w-5 h-5 text-ivory/70 hover:text-champagne transition-colors" />
+            </button>
+          </div>
         </div>
 
         {/* Search input */}

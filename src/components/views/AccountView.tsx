@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { User, Package, Search, Heart, Sparkles, Folder, Ruler, Bell, Settings, ShieldCheck, Check } from 'lucide-react';
+import { User, Package, Search, Heart, Sparkles, Folder, Ruler, Bell, Settings, ShieldCheck, Check, ArrowLeft } from 'lucide-react';
 
 export const AccountView: React.FC = () => {
   const { setActiveView, currentUser, login, logout, orders } = useApp();
@@ -40,13 +40,29 @@ export const AccountView: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         {/* Header */}
         <div className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-champagne/20 gap-4">
-          <div>
-            <div className="text-[10px] font-brand uppercase tracking-[0.25em] text-champagne mb-1">
-              Private Client Portal • Supabase Auth & RLS
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  setActiveView('home');
+                }
+              }}
+              className="p-2 rounded-xl bg-plum-dark border border-champagne/30 text-champagne hover:bg-burgundy flex items-center gap-1.5 text-xs font-brand uppercase tracking-wider transition-all"
+              title="Go Back"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
+            <div>
+              <div className="text-[10px] font-brand uppercase tracking-[0.25em] text-champagne mb-1">
+                Private Client Portal • Supabase Auth & RLS
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-editorial font-bold text-ivory uppercase">
+                CLIENT DASHBOARD
+              </h1>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-editorial font-bold text-ivory uppercase">
-              CLIENT DASHBOARD
-            </h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-plum-dark border border-champagne/30 px-4 py-2 rounded-xl">

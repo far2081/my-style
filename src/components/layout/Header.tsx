@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { NexoraLogo } from '../common/NexoraLogo';
-import { Search, Heart, User, ShoppingBag, Sparkles, ShieldCheck } from 'lucide-react';
+import { Search, Heart, User, ShoppingBag, Sparkles, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { ViewMode } from '../../types';
 
 export const Header: React.FC = () => {
@@ -70,25 +70,44 @@ export const Header: React.FC = () => {
         }`}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
-          {/* Left: EXACT NEXORA AI LOGO + Brand Name */}
-          <button
-            onClick={() => setActiveView('home')}
-            className="flex items-center gap-4 group text-left focus:outline-none"
-          >
-            {/* EXACT NEXORA AI LOGO */}
-            <div className="p-1 rounded bg-black/20 border border-champagne/20 flex items-center justify-center">
-              <NexoraLogo size="sm" />
-            </div>
+          {/* Left: Back Button + EXACT NEXORA AI LOGO + Brand Name */}
+          <div className="flex items-center gap-3">
+            {activeView !== 'home' && (
+              <button
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    setActiveView('home');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-burgundy/80 hover:bg-burgundy text-champagne border border-champagne/40 text-xs font-brand uppercase tracking-wider transition-all hover:scale-105 shadow-sm"
+                title="Go Back to Previous Page"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-champagne" />
+                <span>Back</span>
+              </button>
+            )}
 
-            <div className="flex flex-col">
-              <span className="font-brand text-lg font-bold tracking-[0.22em] text-ivory group-hover:text-champagne transition-colors">
-                STYLEMIRA <span className="text-champagne font-light">AI</span>
-              </span>
-              <span className="text-[9px] uppercase tracking-[0.35em] text-champagne-light/75">
-                Couture Fashion Studio
-              </span>
-            </div>
-          </button>
+            <button
+              onClick={() => setActiveView('home')}
+              className="flex items-center gap-4 group text-left focus:outline-none"
+            >
+              {/* EXACT NEXORA AI LOGO */}
+              <div className="p-1 rounded bg-black/20 border border-champagne/20 flex items-center justify-center">
+                <NexoraLogo size="sm" />
+              </div>
+
+              <div className="flex flex-col">
+                <span className="font-brand text-lg font-bold tracking-[0.22em] text-ivory group-hover:text-champagne transition-colors">
+                  STYLEMIRA <span className="text-champagne font-light">AI</span>
+                </span>
+                <span className="text-[9px] uppercase tracking-[0.35em] text-champagne-light/75">
+                  Couture Fashion Studio
+                </span>
+              </div>
+            </button>
+          </div>
 
           {/* Center Navigation */}
           <nav className="flex items-center gap-5 xl:gap-7">

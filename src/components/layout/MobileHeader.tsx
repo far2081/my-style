@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { NexoraLogo } from '../common/NexoraLogo';
-import { Search, ShoppingBag, Menu, X, Sparkles, Crown, Layers, Sparkle } from 'lucide-react';
+import { Search, ShoppingBag, Menu, X, Sparkles, Crown, Layers, Sparkle, ArrowLeft } from 'lucide-react';
 import { ViewMode } from '../../types';
 
 export const MobileHeader: React.FC = () => {
@@ -46,15 +46,32 @@ export const MobileHeader: React.FC = () => {
 
       {/* Main Mobile Header */}
       <header className="lg:hidden sticky top-0 z-40 bg-plum-dark/95 backdrop-blur-md border-b border-champagne/20 px-4 py-2.5 flex items-center justify-between">
-        {/* Left: EXACT NEXORA AI LOGO */}
-        <div className="flex-1 flex items-center justify-start">
-          <button
-            onClick={() => setActiveView('home')}
-            className="flex items-center focus:outline-none"
-            aria-label="Home"
-          >
-            <NexoraLogo size="sm" />
-          </button>
+        {/* Left: Back Button or EXACT NEXORA AI LOGO */}
+        <div className="flex-1 flex items-center justify-start gap-2">
+          {activeView !== 'home' ? (
+            <button
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  setActiveView('home');
+                }
+              }}
+              className="p-1.5 rounded-lg bg-burgundy text-champagne border border-champagne/40 flex items-center gap-1 text-[10px] font-brand uppercase tracking-wider"
+              aria-label="Back"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveView('home')}
+              className="flex items-center focus:outline-none"
+              aria-label="Home"
+            >
+              <NexoraLogo size="sm" />
+            </button>
+          )}
         </div>
 
         {/* Center: STYLEMIRA AI */}

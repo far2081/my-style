@@ -33,6 +33,7 @@ import {
   Image as ImageIcon,
   ArrowUp,
   ArrowDown,
+  ArrowLeft,
   X,
   Check,
   Eye,
@@ -277,6 +278,20 @@ export const AdminView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  setActiveView('home');
+                }
+              }}
+              className="inline-flex items-center gap-2 bg-burgundy/80 hover:bg-burgundy text-champagne border border-champagne/30 hover:border-champagne/60 text-xs font-brand uppercase tracking-wider px-4 py-2 rounded-xl transition-all shadow-sm"
+              title="Go back to previous screen"
+            >
+              <ArrowLeft className="w-4 h-4 text-champagne" />
+              <span>Back</span>
+            </button>
             <button
               onClick={() => setActiveView('home')}
               className="bg-plum hover:bg-burgundy text-champagne border border-champagne/30 text-xs font-brand uppercase tracking-wider px-4 py-2 rounded-xl transition-colors"

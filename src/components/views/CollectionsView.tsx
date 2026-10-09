@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ImageWithFallback } from '../common/ImageWithFallback';
-import { Filter, SlidersHorizontal, X, Heart, Eye, ShoppingBag, Sparkles, Check, Search } from 'lucide-react';
+import { Filter, SlidersHorizontal, X, Heart, Eye, ShoppingBag, Sparkles, Check, Search, ArrowLeft } from 'lucide-react';
 import { STANDARDIZED_COLORS, STANDARDIZED_FABRICS, EVENT_SUBCATEGORIES } from '../../data/constants';
 
 export const CollectionsView: React.FC = () => {
@@ -19,6 +19,7 @@ export const CollectionsView: React.FC = () => {
     setActiveFilterEvent,
     selectedCollection,
     setSelectedCollection,
+    setActiveView,
   } = useApp();
 
   // Filter States per Section 28
@@ -140,26 +141,50 @@ export const CollectionsView: React.FC = () => {
   return (
     <div className="py-12 bg-plum text-ivory min-h-screen">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Page Title & Breadcrumbs */}
-        <div className="mb-10 text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 text-[10px] font-brand uppercase tracking-[0.25em] text-champagne mb-2">
-            <span>StyleMira AI Atelier</span>
-            <span>•</span>
-            <span>Haute Couture Central Catalog</span>
-            {activeFilterEvent && (
-              <>
-                <span>•</span>
-                <span className="text-champagne-light font-bold">{activeFilterEvent} COLLECTION</span>
-              </>
-            )}
+        {/* Page Title & Breadcrumbs with Back Button */}
+        <div className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-center sm:text-left">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[10px] font-brand uppercase tracking-[0.25em] text-champagne mb-2">
+              <button
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    setActiveView('home');
+                  }
+                }}
+                className="hover:underline flex items-center gap-1 text-champagne"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                <span>Back</span>
+              </button>
+              <span>•</span>
+              <span>StyleMira AI Atelier</span>
+              <span>•</span>
+              <span>Haute Couture Catalog</span>
+              {activeFilterEvent && (
+                <>
+                  <span>•</span>
+                  <span className="text-champagne-light font-bold">{activeFilterEvent} COLLECTION</span>
+                </>
+              )}
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-editorial font-bold text-ivory tracking-tight uppercase">
+              {activeFilterEvent ? `${activeFilterEvent} COLLECTION` : 'COUTURE COLLECTIONS'}
+            </h1>
+            <p className="text-xs sm:text-sm text-ivory/70 max-w-xl mt-2 font-light">
+              {selectedCollection?.description ||
+                'Explore our curated Pakistani bridal lehengas, festive peshwas, and luxury velvet Pret ensembles.'}
+            </p>
           </div>
-          <h1 className="text-3xl sm:text-5xl font-editorial font-bold text-ivory tracking-tight uppercase">
-            {activeFilterEvent ? `${activeFilterEvent} COLLECTION` : 'COUTURE COLLECTIONS'}
-          </h1>
-          <p className="text-xs sm:text-sm text-ivory/70 max-w-xl mt-2 font-light">
-            {selectedCollection?.description ||
-              'Explore our curated Pakistani bridal lehengas, festive peshwas, and luxury velvet Pret ensembles.'}
-          </p>
+
+          <button
+            onClick={() => setActiveView('home')}
+            className="self-center sm:self-start px-4 py-2 rounded-xl bg-plum-dark border border-champagne/30 text-champagne hover:bg-burgundy text-xs font-brand uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Return to Home</span>
+          </button>
         </div>
 
         {/* Top Search & Filter Bar */}

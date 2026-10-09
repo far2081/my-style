@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { ImageWithFallback } from '../common/ImageWithFallback';
-import { Heart, ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
+import { Heart, ShoppingBag, Trash2, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const WishlistView: React.FC = () => {
   const { wishlist, toggleWishlist, addToCart, setActiveView, setSelectedProduct } = useApp();
@@ -15,17 +15,31 @@ export const WishlistView: React.FC = () => {
     <div className="py-16 bg-plum text-ivory min-h-screen">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-12 text-center">
-          <div className="inline-flex items-center gap-2 text-[10px] font-brand uppercase tracking-[0.25em] text-champagne mb-2">
-            <Heart className="w-3.5 h-3.5 fill-champagne text-champagne" />
-            <span>Private Curations</span>
+        <div className="mb-12 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <button
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                setActiveView('home');
+              }
+            }}
+            className="self-start sm:self-center px-4 py-2 rounded-xl bg-plum-dark border border-champagne/30 text-champagne hover:bg-burgundy flex items-center gap-1.5 text-xs font-brand uppercase tracking-wider transition-all"
+            title="Go Back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </button>
+          <div className="text-center flex-1">
+            <div className="inline-flex items-center gap-2 text-[10px] font-brand uppercase tracking-[0.25em] text-champagne mb-2">
+              <Heart className="w-3.5 h-3.5 fill-champagne text-champagne" />
+              <span>Private Curations</span>
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-editorial font-bold text-ivory tracking-tight uppercase">
+              SAVED WISHLIST ({wishlist.length})
+            </h1>
           </div>
-          <h1 className="text-3xl sm:text-5xl font-editorial font-bold text-ivory tracking-tight uppercase">
-            SAVED WISHLIST ({wishlist.length})
-          </h1>
-          <p className="text-xs sm:text-sm text-ivory/70 max-w-md mx-auto mt-2 font-light">
-            Your saved haute couture pieces and bespoke bridal favorites.
-          </p>
+          <div className="w-20 hidden sm:block" />
         </div>
 
         {wishlist.length === 0 ? (

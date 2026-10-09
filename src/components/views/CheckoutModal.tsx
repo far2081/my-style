@@ -125,12 +125,29 @@ export const CheckoutModal: React.FC = () => {
 
       {/* Modal Dialog */}
       <div className="relative bg-plum-dark border border-champagne/40 rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl p-6 sm:p-10 text-ivory z-10">
-        <button
-          onClick={() => setIsCheckoutOpen(false)}
-          className="absolute top-5 right-5 p-2 rounded-full bg-plum/80 text-ivory/80 hover:text-champagne transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Top bar with Back and Close */}
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-champagne/20">
+          <button
+            onClick={() => {
+              if (currentStep > 1 && !isCompleted) {
+                setCurrentStep(currentStep - 1);
+              } else {
+                setIsCheckoutOpen(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-xs text-champagne hover:text-ivory bg-plum/70 hover:bg-burgundy px-3 py-1.5 rounded-xl border border-champagne/30 transition-colors font-brand uppercase tracking-wider"
+          >
+            <ArrowLeft className="w-4 h-4 text-champagne" />
+            <span>{currentStep > 1 && !isCompleted ? 'Previous Step' : 'Back to Store'}</span>
+          </button>
+          <button
+            onClick={() => setIsCheckoutOpen(false)}
+            className="p-2 rounded-full bg-plum/80 text-ivory/80 hover:text-champagne transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {isCompleted ? (
           <div className="py-12 text-center max-w-md mx-auto space-y-4">
