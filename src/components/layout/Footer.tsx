@@ -187,29 +187,52 @@ export const Footer: React.FC = () => {
             </h4>
             <ul className="space-y-2 text-xs text-ivory/70">
               <li>
-                <a href="#size-guide" className="hover:text-champagne transition-colors">
+                <button
+                  onClick={() => {
+                    alert('STYLEMIRA COUTURE SIZE GUIDE:\n\n• XS (Bust: 32", Waist: 25", Hips: 35")\n• S (Bust: 34", Waist: 27", Hips: 37")\n• M (Bust: 36", Waist: 29", Hips: 39")\n• L (Bust: 38", Waist: 31", Hips: 41")\n• XL (Bust: 41", Waist: 34", Hips: 44")\n\nCustom tailoring & bespoke sizing available upon consultation.');
+                  }}
+                  className="hover:text-champagne transition-colors text-left"
+                >
                   Couture Size Guide
-                </a>
+                </button>
               </li>
               <li>
-                <a href="#bespoke" className="hover:text-champagne transition-colors">
+                <button
+                  onClick={() => setActiveView('stylist')}
+                  className="hover:text-champagne transition-colors text-left"
+                >
                   Bespoke Consultation
-                </a>
+                </button>
               </li>
               <li>
-                <a href="#shipping" className="hover:text-champagne transition-colors">
+                <button
+                  onClick={() => {
+                    alert('GLOBAL INSURED SHIPPING:\n\n• Pakistan Domestic: Free 2-3 Day White-Glove TCS Express\n• International (USA, UK, UAE, Canada): 5-7 Day DHL Express Priority\n• All high-value bridal parcels are insured at 100% declared valuation.');
+                  }}
+                  className="hover:text-champagne transition-colors text-left"
+                >
                   Global Shipping & Insured Delivery
-                </a>
+                </button>
               </li>
               <li>
-                <a href="#care" className="hover:text-champagne transition-colors">
+                <button
+                  onClick={() => {
+                    alert('ZARDOZI & HEIRLOOM TEXTILE CARE:\n\n• Dry clean only with specialist luxury couture preservationists.\n• Store in the provided velvet acid-free preservation trunk.\n• Avoid direct contact with heavy perfumes and water moisture.');
+                  }}
+                  className="hover:text-champagne transition-colors text-left"
+                >
                   Zardozi & Fabric Care
-                </a>
+                </button>
               </li>
               <li>
-                <a href="#faq" className="hover:text-champagne transition-colors">
+                <button
+                  onClick={() => {
+                    alert('FREQUENTLY ASKED QUESTIONS:\n\nQ: How does Virtual Try-On work?\nA: Upload a portrait and select any catalog dress for 360° neural silhouette fitting.\n\nQ: What are payment methods?\nA: Cash on Delivery (COD), Direct Bank Wire (HBL IBAN), and Stripe Online Card payments.');
+                  }}
+                  className="hover:text-champagne transition-colors text-left"
+                >
                   Frequently Asked Questions
-                </a>
+                </button>
               </li>
             </ul>
           </div>
