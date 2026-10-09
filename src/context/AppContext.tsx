@@ -68,6 +68,7 @@ interface AppContextType {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   selectedBridalItems: BridalItem[];
+  setSelectedBridalItems: (items: BridalItem[]) => void;
   toggleBridalItem: (item: BridalItem) => void;
   bridalLookTotal: number;
   isBridalOfferEligible: boolean;
@@ -634,6 +635,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         searchQuery,
         setSearchQuery,
         selectedBridalItems,
+        setSelectedBridalItems,
         toggleBridalItem,
         bridalLookTotal,
         isBridalOfferEligible,

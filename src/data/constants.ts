@@ -85,6 +85,27 @@ export const STANDARDIZED_FABRICS = [
   'Tissue',
 ] as const;
 
+export const FABRIC_IMAGE_MAP: Record<string, string> = {
+  'Silk': '/images/fabrics/silk.jpg',
+  'Raw Silk': '/images/fabrics/raw-silk.jpg',
+  'Chiffon': '/images/fabrics/chiffon.jpg',
+  'Organza': '/images/fabrics/organza.jpg',
+  'Velvet': '/images/fabrics/velvet.jpg',
+  'Net': '/images/fabrics/net.jpg',
+  'Lawn': '/images/fabrics/lawn.jpg',
+  'Cotton': '/images/fabrics/cotton.jpg',
+  'Jacquard': '/images/fabrics/jacquard.jpg',
+  'Brocade': '/images/fabrics/brocade.jpg',
+  'Georgette': '/images/fabrics/georgette.jpg',
+  'Katan': '/images/fabrics/katan.jpg',
+  'Khadi': '/images/fabrics/khadi.jpg',
+  'Tissue': '/images/fabrics/tissue.jpg',
+  'Banarsi': '/images/fabrics/banarsi.jpg',
+  'Karandi': '/images/fabrics/karandi.jpg',
+  'Pashmina': '/images/fabrics/pashmina.jpg',
+  'Linen': '/images/fabrics/linen.jpg',
+};
+
 export const STANDARDIZED_TAGS = [
   'Luxury',
   'Traditional',

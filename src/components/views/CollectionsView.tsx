@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ImageWithFallback } from '../common/ImageWithFallback';
 import { Filter, SlidersHorizontal, X, Heart, Eye, ShoppingBag, Sparkles, Check, Search, ArrowLeft } from 'lucide-react';
-import { STANDARDIZED_COLORS, STANDARDIZED_FABRICS, EVENT_SUBCATEGORIES } from '../../data/constants';
+import { STANDARDIZED_COLORS, STANDARDIZED_FABRICS, FABRIC_IMAGE_MAP, EVENT_SUBCATEGORIES } from '../../data/constants';
 
 export const CollectionsView: React.FC = () => {
   const {
@@ -104,8 +104,12 @@ export const CollectionsView: React.FC = () => {
         if (!isMatch) return false;
       }
 
-      // Fabric
-      if (selectedFabric !== 'All' && p.fabric !== selectedFabric) return false;
+      // Fabric (Supports exact and rich variations like Pure Raw Silk, Micro Velvet)
+      if (selectedFabric !== 'All') {
+        const sfLower = selectedFabric.toLowerCase();
+        const pfLower = (p.fabric || '').toLowerCase();
+        if (!pfLower.includes(sfLower) && !sfLower.includes(pfLower)) return false;
+      }
 
       // Color
       if (selectedColor !== 'All' && p.color !== selectedColor && !(p.secondaryColors && p.secondaryColors.includes(selectedColor))) return false;
@@ -397,17 +401,72 @@ export const CollectionsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Fabric Filter (Section 23 Standardized Fabrics) */}
+            {/* Fabric Filter (Section 23 Standardized Fabrics with Real Swatch Images) */}
             <div className="pt-4 border-t border-champagne/15">
-              <label className="text-[11px] font-brand uppercase tracking-wider text-champagne block mb-2 font-bold">
-                Fabric Material
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-brand uppercase tracking-wider text-champagne block font-bold">
+                  Fabric Material
+                </label>
+                {selectedFabric !== 'All' && (
+                  <button
+                    onClick={() => setSelectedFabric('All')}
+                    className="text-[10px] text-ivory/50 hover:text-champagne underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Visual Fabric Swatch Grid */}
+              <div className="grid grid-cols-2 gap-2 mb-2 max-h-56 overflow-y-auto pr-1 no-scrollbar">
+                <button
+                  onClick={() => setSelectedFabric('All')}
+                  className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all ${
+                    selectedFabric === 'All'
+                      ? 'bg-champagne text-plum font-bold border-champagne shadow-gold-subtle'
+                      : 'bg-plum/60 text-ivory/70 border-champagne/15 hover:border-champagne/40'
+                  }`}
+                >
+                  <span className="w-7 h-7 rounded-md bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-[10px] font-bold">
+                    ALL
+                  </span>
+                  <span className="text-[11px] truncate font-medium">All Fabrics</span>
+                </button>
+
+                {STANDARDIZED_FABRICS.map((f) => {
+                  const imgUrl = FABRIC_IMAGE_MAP[f] || '/images/fabrics/silk.jpg';
+                  const isSelected = selectedFabric === f;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setSelectedFabric(f)}
+                      title={f}
+                      className={`flex items-center gap-2 p-1.5 rounded-lg border text-left text-xs transition-all ${
+                        isSelected
+                          ? 'bg-champagne text-plum font-bold border-champagne shadow-gold-subtle ring-1 ring-champagne'
+                          : 'bg-plum/60 text-ivory/70 border-champagne/15 hover:border-champagne/40 hover:text-ivory'
+                      }`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={f}
+                        className="w-7 h-7 rounded-md object-cover border border-champagne/30 shrink-0 shadow-sm"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      <span className="text-[11px] truncate font-medium">{f}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <select
                 value={selectedFabric}
                 onChange={(e) => setSelectedFabric(e.target.value)}
-                className="w-full bg-plum border border-champagne/30 rounded-lg px-3 py-2 text-xs text-ivory focus:outline-none focus:border-champagne"
+                className="w-full bg-plum border border-champagne/30 rounded-lg px-3 py-1.5 text-xs text-ivory focus:outline-none focus:border-champagne"
               >
-                <option value="All">All Fabrics</option>
+                <option value="All">All Fabrics (Quick Select)</option>
                 {STANDARDIZED_FABRICS.map((f) => (
                   <option key={f} value={f}>{f}</option>
                 ))}
@@ -641,7 +700,46 @@ export const CollectionsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs uppercase text-champagne font-bold block mb-2">Fabric</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs uppercase text-champagne font-bold">Fabric Material</label>
+                {selectedFabric !== 'All' && (
+                  <button
+                    onClick={() => setSelectedFabric('All')}
+                    className="text-[10px] text-ivory/50 hover:text-champagne underline"
+                  >
+                    Clear ({selectedFabric})
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto mb-2 pr-1">
+                <button
+                  onClick={() => setSelectedFabric('All')}
+                  className={`flex items-center gap-2 p-2 rounded-lg text-xs font-semibold ${
+                    selectedFabric === 'All' ? 'bg-champagne text-plum font-bold' : 'bg-plum text-ivory/70 border border-champagne/15'
+                  }`}
+                >
+                  <span className="w-6 h-6 rounded bg-burgundy flex items-center justify-center text-[9px] font-bold text-champagne">
+                    ALL
+                  </span>
+                  <span>All Fabrics</span>
+                </button>
+                {STANDARDIZED_FABRICS.map((f) => {
+                  const imgUrl = FABRIC_IMAGE_MAP[f] || '/images/fabrics/silk.jpg';
+                  const isSel = selectedFabric === f;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setSelectedFabric(f)}
+                      className={`flex items-center gap-2 p-2 rounded-lg text-xs font-semibold ${
+                        isSel ? 'bg-champagne text-plum font-bold' : 'bg-plum text-ivory/70 border border-champagne/15'
+                      }`}
+                    >
+                      <img src={imgUrl} alt={f} className="w-6 h-6 rounded object-cover border border-champagne/30 shrink-0" />
+                      <span className="truncate">{f}</span>
+                    </button>
+                  );
+                })}
+              </div>
               <select
                 value={selectedFabric}
                 onChange={(e) => setSelectedFabric(e.target.value)}
