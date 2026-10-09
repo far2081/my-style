@@ -15,6 +15,9 @@ export const QuickStyleFinder: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreateLook = () => {
+    const cleanedOccasion = selectedOccasion.split('&')[0].trim();
+    setActiveFilterOccasion(cleanedOccasion);
+    setActiveFilterEvent(selectedEvent);
     setActiveView('stylist');
   };
 

@@ -1,13 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Sparkles, Camera, Upload, Check, Wand2, Sliders, RefreshCw, ShoppingBag, Eye, X } from 'lucide-react';
+import { Sparkles, Camera, Upload, Check, Wand2, Sliders, RefreshCw, ShoppingBag, Eye, X, ArrowLeft } from 'lucide-react';
 import { ImageWithFallback } from '../common/ImageWithFallback';
 import { CameraModal } from '../common/CameraModal';
 import { PRODUCTS_DATA } from '../../data/products';
 import { aiProviders } from '../../services/aiProvider';
 
 export const AIStylistSection: React.FC = () => {
-  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto } = useApp();
+  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto, activeFilterOccasion, activeFilterEvent, setActiveView } = useApp();
 
   const [step, setStep] = useState<'input' | 'processing' | 'result'>('input');
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -24,9 +24,43 @@ export const AIStylistSection: React.FC = () => {
   const [season, setSeason] = useState('Winter');
   const [budget, setBudget] = useState('PKR 250,000 - 400,000');
 
-  const colorOptions = ['Burgundy', 'Champagne', 'Maroon', 'Ivory', 'Mint', 'Rose', 'Emerald', 'Mustard', 'Blush'];
+  // Synchronize with activeFilterOccasion / activeFilterEvent if passed from QuickStyleFinder
+  useEffect(() => {
+    if (activeFilterOccasion) {
+      if (activeFilterOccasion.toLowerCase().includes('walima')) {
+        setSelectedOccasion('Walima');
+        setPreferredColors(['Champagne', 'Mint']);
+        setDressType('Floor-length Peshwas');
+      } else if (activeFilterOccasion.toLowerCase().includes('mehndi') || activeFilterOccasion.toLowerCase().includes('mayo')) {
+        setSelectedOccasion('Mehndi');
+        setPreferredColors(['Mustard', 'Emerald']);
+        setDressType('Tiered Banarsi Gharara');
+      } else if (activeFilterOccasion.toLowerCase().includes('nikah')) {
+        setSelectedOccasion('Nikah');
+        setPreferredColors(['Ivory', 'Blush']);
+        setDressType('Floor-length Peshwas');
+      } else if (activeFilterOccasion.toLowerCase().includes('formal')) {
+        setSelectedOccasion('Formal');
+        setPreferredColors(['Navy', 'Emerald']);
+        setDressType('Zardozi Angrakha');
+      } else if (activeFilterOccasion.toLowerCase().includes('casual')) {
+        setSelectedOccasion('Casual');
+        setPreferredColors(['Peach', 'Mint']);
+        setDressType('Everyday Pret');
+      } else if (activeFilterOccasion.toLowerCase().includes('party') || activeFilterOccasion.toLowerCase().includes('pret')) {
+        setSelectedOccasion('Party');
+        setPreferredColors(['Burgundy', 'Teal']);
+        setDressType('Luxury Velvet Kaftan');
+      } else {
+        setSelectedOccasion('Barat');
+      }
+    }
+  }, [activeFilterOccasion]);
+
+  const colorOptions = ['Burgundy', 'Champagne', 'Maroon', 'Ivory', 'Mint', 'Rose', 'Emerald', 'Mustard', 'Blush', 'Navy', 'Peach', 'Teal'];
 
   const toggleColor = (c: string) => {
+    setGeminiRecommendedProduct(null);
     if (preferredColors.includes(c)) {
       setPreferredColors(preferredColors.filter((item) => item !== c));
     } else {
@@ -90,21 +124,52 @@ export const AIStylistSection: React.FC = () => {
     }
   };
 
+  // High-sensitivity multi-parameter scoring: ensures every color, dress type, occasion, and silhouette updates the resulting dress!
   const recommendedProduct = React.useMemo(() => {
     if (geminiRecommendedProduct) return geminiRecommendedProduct;
 
     const scored = products.map((p) => {
       let score = 0;
-      if (p.occasion.toLowerCase() === selectedOccasion.toLowerCase()) score += 25;
-      if (p.event && p.event.toLowerCase() === selectedOccasion.toLowerCase()) score += 30;
-      if (preferredColors.some((c) => p.color.toLowerCase().includes(c.toLowerCase()) || (p.secondaryColors && p.secondaryColors.some((sc) => sc.toLowerCase().includes(c.toLowerCase()))))) score += 15;
-      if (p.dressType.toLowerCase().includes(dressType.toLowerCase())) score += 20;
+      const pOccasion = (p.occasion || '').toLowerCase();
+      const pEvent = (p.event || '').toLowerCase();
+      const pColor = (p.color || '').toLowerCase();
+      const pCategory = (p.category || '').toLowerCase();
+      const pDressType = (p.dressType || '').toLowerCase();
+      const pSecondaryColors = (p.secondaryColors || []).map((c) => c.toLowerCase());
+      const pDescription = (p.description || '').toLowerCase();
+
+      // 1. Occasion & Event Match
+      const targetOcc = selectedOccasion.toLowerCase();
+      if (pOccasion.includes(targetOcc) || targetOcc.includes(pOccasion)) score += 35;
+      if (pEvent.includes(targetOcc)) score += 30;
+
+      // 2. Color Match (High sensitivity)
+      preferredColors.forEach((color) => {
+        const cLower = color.toLowerCase();
+        if (pColor.includes(cLower)) score += 40;
+        if (pSecondaryColors.some((sc) => sc.includes(cLower))) score += 25;
+        if (pDescription.includes(cLower)) score += 15;
+      });
+
+      // 3. Dress Type & Silhouette Match
+      const cleanDressType = dressType.toLowerCase().replace('heirloom', '').replace('floor-length', '').replace('tiered', '').trim();
+      if (pDressType.includes(cleanDressType) || pCategory.includes(cleanDressType)) score += 30;
+
+      // 4. Body Structure tailoring bonus
+      if (bodyStructure.includes('Petite') && (pDressType.includes('peshwas') || pDressType.includes('coord') || pDressType.includes('pishwas'))) score += 15;
+      if (bodyStructure.includes('Hourglass') && (pDressType.includes('lehenga') || pDressType.includes('gharara'))) score += 15;
+      if (bodyStructure.includes('Tall') && (pDressType.includes('peshwas') || pDressType.includes('gown') || pDressType.includes('pishwas'))) score += 15;
+      if (bodyStructure.includes('Curvy') && (pDressType.includes('kaftan') || pDressType.includes('angrakha') || pDressType.includes('gharara'))) score += 15;
+
+      // 5. Season & Fabric Match
       if (p.season === season || p.season === 'All Season') score += 10;
+
       return { product: p, score };
     });
+
     scored.sort((a, b) => b.score - a.score);
     return scored[0]?.product || products[0];
-  }, [geminiRecommendedProduct, products, selectedOccasion, preferredColors, season, dressType]);
+  }, [geminiRecommendedProduct, products, selectedOccasion, preferredColors, season, dressType, bodyStructure]);
 
   return (
     <section className="py-24 bg-plum-dark text-ivory relative overflow-hidden" id="ai-stylist">
@@ -171,13 +236,22 @@ export const AIStylistSection: React.FC = () => {
                   </h3>
                 </div>
               </div>
-              <button
-                onClick={() => setStep('input')}
-                className="text-xs uppercase tracking-wider text-champagne hover:text-champagne-light flex items-center gap-1.5 border border-champagne/30 px-3 py-1.5 rounded-lg"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Adjust Parameters</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStep('input')}
+                  className="text-xs uppercase tracking-wider text-champagne hover:text-champagne-light flex items-center gap-1.5 border border-champagne/30 px-3 py-1.5 rounded-lg"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Adjust Parameters</span>
+                </button>
+                <button
+                  onClick={() => setActiveView('home')}
+                  className="text-xs uppercase tracking-wider text-ivory/70 hover:text-champagne hover:bg-plum-dark/60 flex items-center gap-1.5 border border-champagne/20 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
@@ -513,12 +587,20 @@ export const AIStylistSection: React.FC = () => {
               </div>
             </div>
 
-            {/* CTA */}
-            <div className="text-center pt-2">
+            {/* CTA & Navigation */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveView('home')}
+                className="w-full sm:w-auto bg-plum-dark/90 hover:bg-plum border border-champagne/30 text-champagne font-brand text-xs uppercase tracking-widest px-8 py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4 text-champagne" />
+                <span>BACK TO HOME</span>
+              </button>
               <button
                 type="button"
                 onClick={handleCreateLook}
-                className="w-full sm:w-auto bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-[0.25em] px-12 py-4 rounded-xl shadow-gold-glow hover:scale-105 transition-all flex items-center justify-center gap-3 mx-auto"
+                className="w-full sm:w-auto bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-[0.25em] px-12 py-4 rounded-xl shadow-gold-glow hover:scale-105 transition-all flex items-center justify-center gap-3"
               >
                 <Wand2 className="w-4 h-4 text-plum" />
                 <span>CREATE MY LOOK</span>
