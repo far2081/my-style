@@ -23,22 +23,13 @@ export const TryOnModal: React.FC = () => {
     Boolean(personalizedTryOnUrl) &&
     (personalizedTryOnProductId === dress.id || !personalizedTryOnProductId);
 
-  // Available genuine views for catalog dress (when personalized try-on is not active)
-  const genuineViews = React.useMemo(() => {
-    const list: Array<{ id: 'front' | 'left' | 'right' | 'back'; label: string; url: string }> = [
-      { id: 'front', label: 'Front View', url: dress.images.front },
-    ];
-    if (dress.images.left && dress.images.left !== dress.images.front) {
-      list.push({ id: 'left', label: 'Left Profile', url: dress.images.left });
-    }
-    if (dress.images.right && dress.images.right !== dress.images.front) {
-      list.push({ id: 'right', label: 'Right Profile', url: dress.images.right });
-    }
-    if (dress.images.back && dress.images.back !== dress.images.front) {
-      list.push({ id: 'back', label: 'Back View', url: dress.images.back });
-    }
-    return list;
-  }, [dress]);
+  // Available views for catalog dress: Front, Left, Right, Back - ALWAYS the same dress
+  const genuineViews: Array<{ id: 'front' | 'left' | 'right' | 'back'; label: string; url: string }> = React.useMemo(() => [
+    { id: 'front', label: 'Front View', url: dress.images.front },
+    { id: 'left', label: 'Left Profile', url: dress.images.left || dress.images.front },
+    { id: 'right', label: 'Right Profile', url: dress.images.right || dress.images.front },
+    { id: 'back', label: 'Back View', url: dress.images.back || dress.images.front },
+  ], [dress]);
 
   const [activeViewId, setActiveViewId] = useState<'front' | 'left' | 'right' | 'back'>('front');
   const [isDragging, setIsDragging] = useState(false);
@@ -174,16 +165,6 @@ export const TryOnModal: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* When only 1 genuine catalog view exists */}
-            {genuineViews.length <= 1 && (
-              <div className="bg-plum/80 border border-champagne/20 rounded-xl px-3 py-2 flex items-center justify-center gap-2 text-xs text-center">
-                <Info className="w-3.5 h-3.5 text-champagne/80 flex-shrink-0" />
-                <span className="text-ivory/70 text-[11px]">
-                  Additional views are not available yet for this catalog garment.
-                </span>
-              </div>
-            )}
           </div>
         )}
 

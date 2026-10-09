@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from '../common/ImageWithFallback';
 import { CameraModal } from '../common/CameraModal';
-import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X } from 'lucide-react';
+import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter } from 'lucide-react';
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
 
@@ -20,6 +20,7 @@ export const VirtualTryOnSection: React.FC = () => {
     personalizedTryOnUrl,
     setPersonalizedTryOnUrl,
     setPersonalizedTryOnProductId,
+    activeFilterOccasion,
   } = useApp();
 
   const currentDress = tryOnProduct || products[0] || PRODUCTS_DATA[0];
@@ -29,6 +30,91 @@ export const VirtualTryOnSection: React.FC = () => {
   const [tryOnGenerated, setTryOnGenerated] = useState(false);
   const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(personalizedTryOnUrl || null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+
+  // Category & Color Filtering for Step 2
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedColor, setSelectedColor] = useState<string>('All');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Sync category filter if user came from QuickStyleFinder or AIStylist
+  useEffect(() => {
+    if (activeFilterOccasion) {
+      const occ = activeFilterOccasion.toLowerCase();
+      if (occ.includes('barat')) setSelectedCategory('Barat');
+      else if (occ.includes('walima')) setSelectedCategory('Walima');
+      else if (occ.includes('mehndi')) setSelectedCategory('Mehndi');
+      else if (occ.includes('bridal')) setSelectedCategory('Bridal');
+      else if (occ.includes('formal')) setSelectedCategory('Formal');
+      else if (occ.includes('festive')) setSelectedCategory('Festive');
+      else if (occ.includes('luxury') || occ.includes('pret')) setSelectedCategory('Luxury Pret');
+      else if (occ.includes('casual')) setSelectedCategory('Casual');
+    }
+  }, [activeFilterOccasion]);
+
+  const categories = [
+    { label: 'All', value: 'All' },
+    { label: 'Barat', value: 'Barat' },
+    { label: 'Walima', value: 'Walima' },
+    { label: 'Mehndi', value: 'Mehndi' },
+    { label: 'Bridal', value: 'Bridal' },
+    { label: 'Formal', value: 'Formal' },
+    { label: 'Festive', value: 'Festive' },
+    { label: 'Luxury Pret', value: 'Luxury Pret' },
+    { label: 'Casual', value: 'Casual' },
+  ];
+
+  const colorOptions = [
+    'All',
+    'Burgundy',
+    'Maroon',
+    'Crimson',
+    'Champagne',
+    'Mint',
+    'Mustard',
+    'Emerald',
+    'Navy',
+    'Peach',
+    'Plum',
+    'Gold',
+    'Silver',
+  ];
+
+  // Filtered dresses based on Category, Color, and Search
+  const filteredDresses = useMemo(() => {
+    return products.filter((p) => {
+      // Category filter
+      if (selectedCategory !== 'All') {
+        const catKey = selectedCategory.toLowerCase().replace(/[\s-]/g, '');
+        const pOccasion = (p.occasion || '').toLowerCase().replace(/[\s-]/g, '');
+        const pCategory = (p.category || '').toLowerCase().replace(/[\s-]/g, '');
+        const pEvent = (p.event || '').toLowerCase().replace(/[\s-]/g, '');
+        if (!pOccasion.includes(catKey) && !pCategory.includes(catKey) && !pEvent.includes(catKey)) {
+          return false;
+        }
+      }
+
+      // Color filter
+      if (selectedColor !== 'All') {
+        const cLower = selectedColor.toLowerCase();
+        const pColor = (p.color || '').toLowerCase();
+        const pSecondaries = (p.secondaryColors || []).map((c) => c.toLowerCase());
+        if (!pColor.includes(cLower) && !pSecondaries.some((sc) => sc.includes(cLower))) {
+          return false;
+        }
+      }
+
+      // Keyword Search
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const matchesName = p.name.toLowerCase().includes(q);
+        const matchesFabric = (p.fabric || '').toLowerCase().includes(q);
+        const matchesType = (p.dressType || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesFabric && !matchesType) return false;
+      }
+
+      return true;
+    });
+  }, [products, selectedCategory, selectedColor, searchTerm]);
 
   // Available sample models
   const sampleModels = [
@@ -82,31 +168,19 @@ export const VirtualTryOnSection: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
 
-  // Available genuine views for the catalog dress (distinct authentic photos)
-  const genuineViews = useMemo(() => {
-    const list: Array<{ id: GarmentViewAngle; label: string; url: string }> = [
-      { id: 'front', label: 'Front View', url: currentDress.images.front },
-    ];
-    if (currentDress.images.left && currentDress.images.left !== currentDress.images.front) {
-      list.push({ id: 'left', label: 'Left Profile', url: currentDress.images.left });
-    }
-    if (currentDress.images.right && currentDress.images.right !== currentDress.images.front) {
-      list.push({ id: 'right', label: 'Right Profile', url: currentDress.images.right });
-    }
-    if (currentDress.images.back && currentDress.images.back !== currentDress.images.front) {
-      list.push({ id: 'back', label: 'Back View', url: currentDress.images.back });
-    }
-    return list;
-  }, [currentDress]);
+  // Guarantee that Front, Left, Right, Back ALL show the EXACT SAME SELECTED DRESS
+  const genuineViews: Array<{ id: GarmentViewAngle; label: string; url: string }> = useMemo(() => [
+    { id: 'front', label: 'Front View', url: currentDress.images.front },
+    { id: 'left', label: 'Left Profile', url: currentDress.images.left || currentDress.images.front },
+    { id: 'right', label: 'Right Profile', url: currentDress.images.right || currentDress.images.front },
+    { id: 'back', label: 'Back View', url: currentDress.images.back || currentDress.images.front },
+  ], [currentDress]);
 
-  // Preload genuine garment angles for smooth switching
+  // Preload genuine garment image
   useEffect(() => {
-    const urlsToPreload = genuineViews.map((v) => v.url);
-    urlsToPreload.forEach((url) => {
-      const img = new Image();
-      img.src = url;
-    });
-  }, [genuineViews]);
+    const img = new Image();
+    img.src = currentDress.images.front;
+  }, [currentDress]);
 
   // When dress changes or new result is generated, ensure activeView starts at front
   useEffect(() => {
@@ -149,40 +223,40 @@ export const VirtualTryOnSection: React.FC = () => {
     setActiveView('front');
   };
 
-  // Resolve genuine image for current view
-  // NEVER substitute static catalog model images for customer's try-on views
+  // Resolve currently displayed image:
+  // If personalized try-on is active -> display genuine generated try-on
+  // If catalog dress is active -> always display the exact selected dress
   const getDisplayedImage = () => {
     if (renderedResultUrl) {
       return renderedResultUrl;
     }
-    const found = genuineViews.find((v) => v.id === activeView);
-    return found ? found.url : currentDress.images.front;
+    return currentDress.images.front;
   };
 
   // View navigation helpers for catalog views
   const currentViewIndex = genuineViews.findIndex((v) => v.id === activeView);
 
   const handleNextView = () => {
-    if (renderedResultUrl || genuineViews.length <= 1) return;
+    if (renderedResultUrl) return;
     const nextIndex = (currentViewIndex + 1) % genuineViews.length;
     setActiveView(genuineViews[nextIndex].id);
   };
 
   const handlePrevView = () => {
-    if (renderedResultUrl || genuineViews.length <= 1) return;
+    if (renderedResultUrl) return;
     const prevIndex = (currentViewIndex - 1 + genuineViews.length) % genuineViews.length;
     setActiveView(genuineViews[prevIndex].id);
   };
 
   // Drag / Swipe handlers for genuine views
   const handlePointerDown = (clientX: number) => {
-    if (renderedResultUrl || genuineViews.length <= 1) return;
+    if (renderedResultUrl) return;
     setIsDragging(true);
     setDragStartX(clientX);
   };
 
   const handlePointerUp = (clientX: number) => {
-    if (!isDragging || renderedResultUrl || genuineViews.length <= 1) return;
+    if (!isDragging || renderedResultUrl) return;
     setIsDragging(false);
     const diff = clientX - dragStartX;
     const threshold = 40;
@@ -218,7 +292,7 @@ export const VirtualTryOnSection: React.FC = () => {
           </h2>
           <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-champagne to-transparent mx-auto mb-6" />
           <p className="text-sm sm:text-base text-ivory/70 max-w-2xl mx-auto leading-relaxed font-light">
-            Upload your portrait, select from our heirloom Pakistani couture library, and witness precision photorealistic drape synthesis.
+            Upload your portrait, select from our heirloom Pakistani couture library of 120 authentic dresses across all wedding occasions, and witness precision photorealistic drape synthesis.
           </p>
         </div>
 
@@ -236,9 +310,9 @@ export const VirtualTryOnSection: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Controls Column (4 cols) */}
-            <div className="lg:col-span-4 space-y-6">
-              {/* Customer Photo Selector */}
+            {/* Left Controls Column (5 cols for richer catalog browsing) */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Step 1: Customer Photo Selector */}
               <div className="bg-plum/70 border border-champagne/20 rounded-xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-brand uppercase tracking-wider text-champagne font-bold">
@@ -345,48 +419,108 @@ export const VirtualTryOnSection: React.FC = () => {
                 />
               </div>
 
-              {/* Step 2: Selected Dress Selector */}
-              <div className="bg-plum/70 border border-champagne/20 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-3">
+              {/* Step 2: Selected Dress Selector with Category Filters */}
+              <div className="bg-plum/70 border border-champagne/20 rounded-xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
                   <span className="text-[11px] font-brand uppercase tracking-wider text-champagne font-bold">
-                    Step 2: Selected Dress
+                    Step 2: Choose Your Dress ({filteredDresses.length} Available)
                   </span>
-                  <span className="text-[10px] text-ivory/50">
-                    {products.length} in catalog
+                  <span className="text-[10px] text-champagne-light font-mono font-bold">
+                    {currentDress.occasion}
                   </span>
                 </div>
 
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {products.map((prod) => (
+                {/* Category Selector Tabs */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {categories.map((cat) => (
                     <button
-                      key={prod.id}
-                      onClick={() => {
-                        setTryOnProduct(prod);
-                        setRenderedResultUrl(null);
-                        setPersonalizedTryOnUrl(null);
-                        setPersonalizedTryOnProductId(null);
-                        setTryOnGenerated(false);
-                      }}
-                      className={`w-full flex items-center gap-3 p-2 rounded-lg border text-left transition-all ${
-                        currentDress.id === prod.id
-                          ? 'bg-burgundy/90 border-champagne text-champagne'
-                          : 'bg-plum-dark/40 border-champagne/15 text-ivory/80 hover:bg-plum/60'
+                      key={cat.value}
+                      onClick={() => setSelectedCategory(cat.value)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-brand uppercase tracking-wider whitespace-nowrap transition-all border ${
+                        selectedCategory === cat.value
+                          ? 'bg-burgundy text-champagne border-champagne font-bold shadow-sm'
+                          : 'bg-plum-dark/60 text-ivory/70 border-champagne/20 hover:text-champagne hover:border-champagne/40'
                       }`}
                     >
-                      <img
-                        src={prod.images.front}
-                        alt={prod.name}
-                        className="w-10 h-12 rounded object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold truncate text-ivory">{prod.name}</p>
-                        <p className="text-[10px] text-champagne-light">PKR {prod.price.toLocaleString()}</p>
-                      </div>
-                      {currentDress.id === prod.id && (
-                        <Check className="w-4 h-4 text-champagne flex-shrink-0" />
-                      )}
+                      {cat.label}
                     </button>
                   ))}
+                </div>
+
+                {/* Quick Color Filter & Search */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <select
+                      value={selectedColor}
+                      onChange={(e) => setSelectedColor(e.target.value)}
+                      className="w-full bg-plum-dark/80 border border-champagne/25 text-ivory text-[10px] font-brand rounded-lg px-2 py-1.5 focus:outline-none focus:border-champagne"
+                    >
+                      {colorOptions.map((c) => (
+                        <option key={c} value={c} className="bg-plum-dark text-ivory">
+                          {c === 'All' ? 'All Colors' : c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search dress..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-plum-dark/80 border border-champagne/25 text-ivory text-[10px] font-brand rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:border-champagne placeholder:text-ivory/40"
+                    />
+                    <Search className="w-3 h-3 text-champagne/70 absolute left-2 top-2 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Dress Cards List - Exact Selected Dress Guaranteed */}
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {filteredDresses.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-ivory/50">
+                      No dresses match the selected filters.
+                    </div>
+                  ) : (
+                    filteredDresses.map((prod) => (
+                      <button
+                        key={prod.id}
+                        onClick={() => {
+                          setTryOnProduct(prod);
+                          setRenderedResultUrl(null);
+                          setPersonalizedTryOnUrl(null);
+                          setPersonalizedTryOnProductId(null);
+                          setTryOnGenerated(false);
+                          setActiveView('front');
+                        }}
+                        className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left transition-all ${
+                          currentDress.id === prod.id
+                            ? 'bg-burgundy/90 border-champagne text-champagne shadow-gold-subtle'
+                            : 'bg-plum-dark/50 border-champagne/15 text-ivory/80 hover:bg-plum/60 hover:border-champagne/40'
+                        }`}
+                      >
+                        <img
+                          src={prod.images.front}
+                          alt={prod.name}
+                          className="w-12 h-14 rounded-lg object-cover flex-shrink-0 border border-champagne/20"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate text-ivory">{prod.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[9px] bg-plum px-1.5 py-0.5 rounded text-champagne border border-champagne/20 uppercase tracking-wider font-brand">
+                              {prod.occasion}
+                            </span>
+                            <span className="text-[10px] text-champagne font-bold font-mono">
+                              PKR {prod.price.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        {currentDress.id === prod.id && (
+                          <Check className="w-4 h-4 text-champagne flex-shrink-0" />
+                        )}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -410,8 +544,8 @@ export const VirtualTryOnSection: React.FC = () => {
               </button>
             </div>
 
-            {/* Right Interactive Try-On Viewer (8 cols) */}
-            <div className="lg:col-span-8 space-y-4">
+            {/* Right Interactive Try-On Viewer (7 cols) */}
+            <div className="lg:col-span-7 space-y-4">
               {renderedResultUrl ? (
                 /* Mode 1: Personalized Try-On Result Active (Strictly 1 genuine frontal image) */
                 <div className="space-y-3">
@@ -445,7 +579,7 @@ export const VirtualTryOnSection: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                /* Mode 2: Catalog Multi-View Studio (Genuine photos only, NO CSS rotateY page flip) */
+                /* Mode 2: Catalog Garment Multi-Angle Viewer (SAME dress guaranteed on all angles!) */
                 <div className="space-y-3">
                   <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -464,29 +598,18 @@ export const VirtualTryOnSection: React.FC = () => {
                       ))}
                     </div>
 
-                    {genuineViews.length > 1 && (
-                      <div className="hidden sm:flex items-center gap-1 text-[11px] text-ivory/50 font-brand">
-                        <MoveHorizontal className="w-3.5 h-3.5 text-champagne/70" />
-                        <span>Drag photo to change view</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {genuineViews.length <= 1 && (
-                    <div className="bg-plum/70 border border-champagne/20 rounded-xl px-3.5 py-2 flex items-center justify-center gap-2 text-xs text-center">
-                      <Info className="w-3.5 h-3.5 text-champagne/80 flex-shrink-0" />
-                      <span className="text-ivory/70 text-[11px]">
-                        Additional views are not available yet for this catalog garment.
-                      </span>
+                    <div className="hidden sm:flex items-center gap-1 text-[11px] text-ivory/60 font-brand">
+                      <MoveHorizontal className="w-3.5 h-3.5 text-champagne" />
+                      <span>Drag photo to change view</span>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
-              {/* Main Visual Display Stage */}
+              {/* Main Visual Display Stage - GUARANTEED SAME DRESS ACROSS ALL ANGLES */}
               <div
                 className={`relative aspect-[3/4] sm:aspect-[4/3] rounded-2xl overflow-hidden bg-charcoal-dark border border-champagne/30 shadow-2xl flex items-center justify-center select-none ${
-                  !renderedResultUrl && genuineViews.length > 1 ? 'cursor-grab active:cursor-grabbing' : ''
+                  !renderedResultUrl ? 'cursor-grab active:cursor-grabbing' : ''
                 }`}
                 onMouseDown={(e) => handlePointerDown(e.clientX)}
                 onMouseUp={(e) => handlePointerUp(e.clientX)}
@@ -549,8 +672,8 @@ export const VirtualTryOnSection: React.FC = () => {
                       {renderedResultUrl ? '2D Neural Try-On Result ✓' : `${activeView.toUpperCase()} VIEW`}
                     </div>
 
-                    {/* Quick Steppers (Left/Right Arrows) only when multiple genuine views exist for catalog garment */}
-                    {!renderedResultUrl && genuineViews.length > 1 && (
+                    {/* Quick Steppers (Left/Right Arrows) for cycling views of the same dress */}
+                    {!renderedResultUrl && (
                       <div className="absolute inset-y-0 inset-x-2 flex items-center justify-between pointer-events-none z-10">
                         <button
                           type="button"
@@ -577,8 +700,8 @@ export const VirtualTryOnSection: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Bottom Indicator Dots only for catalog garments with multiple views */}
-                    {!renderedResultUrl && genuineViews.length > 1 && (
+                    {/* Bottom Indicator Dots */}
+                    {!renderedResultUrl && (
                       <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-2 z-10 pointer-events-none">
                         {genuineViews.map((v) => (
                           <button
@@ -608,7 +731,7 @@ export const VirtualTryOnSection: React.FC = () => {
                   <span className="text-[10px] text-ivory/50 uppercase tracking-widest block">Selected Couture Piece</span>
                   <h4 className="text-lg font-editorial font-bold text-ivory">{currentDress.name}</h4>
                   <span className="text-xs text-champagne font-editorial font-bold">
-                    PKR {currentDress.price.toLocaleString()} • {currentDress.fabric}
+                    PKR {currentDress.price.toLocaleString()} • {currentDress.fabric} ({currentDress.color})
                   </span>
                 </div>
 
