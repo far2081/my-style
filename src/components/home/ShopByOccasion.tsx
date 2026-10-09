@@ -58,8 +58,8 @@ export const ShopByOccasion: React.FC = () => {
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                 />
 
-                {/* Gradient shade */}
-                <div className="absolute inset-0 bg-gradient-to-t from-plum-dark/85 via-plum/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
+                {/* Subtle bottom vignette to ensure text contrast while keeping dresses bright and vibrant */}
+                <div className="absolute inset-0 bg-gradient-to-t from-plum-dark/80 via-transparent to-transparent opacity-75 group-hover:opacity-60 transition-opacity" />
 
                 {/* Badge if available */}
                 {occ.badge && (
