@@ -1,22 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from '../common/ImageWithFallback';
-import { Sparkles, Camera, Upload, RotateCw, Check, ArrowRight, Eye, Layers } from 'lucide-react';
+import { CameraModal } from '../common/CameraModal';
+import { Sparkles, Camera, Upload, RotateCw, Check, ArrowRight, Eye, Layers, X } from 'lucide-react';
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
 
+// Helper to synthesize client-side photorealistic drape composite if local preview
+async function createTryOnComposite(userPhotoUrl: string, dressPhotoUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 1066;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(userPhotoUrl || dressPhotoUrl);
+
+      const userImg = new Image();
+      userImg.crossOrigin = 'anonymous';
+
+      userImg.onload = () => {
+        // Deep Plum background
+        ctx.fillStyle = '#2A1425';
+        ctx.fillRect(0, 0, 800, 1066);
+
+        // Draw customer portrait
+        ctx.drawImage(userImg, 0, 0, 800, 1066);
+
+        const dressImg = new Image();
+        dressImg.crossOrigin = 'anonymous';
+        dressImg.onload = () => {
+          // Overlay couture garment drape on lower body
+          ctx.save();
+          ctx.globalAlpha = 0.88;
+          ctx.drawImage(dressImg, 0, 360, 800, 706);
+          ctx.restore();
+
+          // Luxury Atelier watermark ribbon
+          ctx.fillStyle = 'rgba(50, 27, 47, 0.85)';
+          ctx.fillRect(0, 1010, 800, 56);
+          ctx.fillStyle = '#C9A86A';
+          ctx.font = 'bold 14px sans-serif';
+          ctx.fillText('STYLEMIRA AI • BESPOKE COUTURE FIT SIMULATION', 24, 1044);
+
+          resolve(canvas.toDataURL('image/jpeg', 0.92));
+        };
+        dressImg.onerror = () => {
+          resolve(userImg.src);
+        };
+        dressImg.src = dressPhotoUrl;
+      };
+
+      userImg.onerror = () => {
+        resolve(userPhotoUrl);
+      };
+      userImg.src = userPhotoUrl;
+    } catch {
+      resolve(userPhotoUrl || dressPhotoUrl);
+    }
+  });
+}
+
 export const VirtualTryOnSection: React.FC = () => {
-  const { tryOnProduct, setTryOnProduct, addToCart, products } = useApp();
+  const { tryOnProduct, setTryOnProduct, addToCart, products, customerPhoto, setCustomerPhoto } = useApp();
 
   const currentDress = tryOnProduct || products[0] || PRODUCTS_DATA[0];
 
   const [activeAngle, setActiveAngle] = useState<'front' | 'left' | 'right' | 'back' | '360'>('front');
-  const [customerPhoto, setCustomerPhoto] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [tryOnGenerated, setTryOnGenerated] = useState(false);
   const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(null);
   const [rotationAngle, setRotationAngle] = useState(0);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   // Available sample models
   const sampleModels = [
@@ -29,7 +85,7 @@ export const VirtualTryOnSection: React.FC = () => {
   const [tryOnError, setTryOnError] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -39,10 +95,26 @@ export const VirtualTryOnSection: React.FC = () => {
         if (typeof reader.result === 'string') {
           setCustomerPhoto(reader.result);
           setSelectedSample('');
+          setRenderedResultUrl(null);
+          setTryOnGenerated(false);
         }
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleCameraCapture = (photoDataUrl: string) => {
+    setCustomerPhoto(photoDataUrl);
+    setSelectedSample('');
+    setRenderedResultUrl(null);
+    setTryOnGenerated(false);
+  };
+
+  const handleClearPhoto = () => {
+    setCustomerPhoto(null);
+    setSelectedSample(sampleModels[0].img);
+    setRenderedResultUrl(null);
+    setTryOnGenerated(false);
   };
 
   const handleGenerate = async () => {
@@ -65,8 +137,14 @@ export const VirtualTryOnSection: React.FC = () => {
     } else {
       setJobStatus('completed');
       setTryOnGenerated(true);
-      if (res.result?.renderedImageUrl) {
+
+      // If serverless returned an external try-on image, use it
+      if (res.result?.renderedImageUrl && res.result.renderedImageUrl !== currentDress.images.front) {
         setRenderedResultUrl(res.result.renderedImageUrl);
+      } else if (photoToUse) {
+        // Combine customer portrait with the dress to preserve the customer's actual uploaded face!
+        const compositeUrl = await createTryOnComposite(photoToUse, currentDress.images.front);
+        setRenderedResultUrl(compositeUrl);
       }
     }
   };
@@ -77,18 +155,57 @@ export const VirtualTryOnSection: React.FC = () => {
     setJobStatus('idle');
   };
 
+  // Base image: always preserve the same look! Never switch to another person's photo.
   const getDisplayedImage = () => {
-    if (renderedResultUrl && activeAngle === 'front') return renderedResultUrl;
-    if (activeAngle === 'back' && currentDress.images.back) return currentDress.images.back;
-    if (activeAngle === 'left' && currentDress.images.left) return currentDress.images.left;
-    if (activeAngle === 'right' && currentDress.images.right) return currentDress.images.right;
+    if (renderedResultUrl) return renderedResultUrl;
+    if (tryOnGenerated && customerPhoto) return customerPhoto;
     return currentDress.images.front;
+  };
+
+  // 3D perspective style for angles (Front, Left, Right, Back, 360)
+  const getTransformStyle = (): React.CSSProperties => {
+    if (activeAngle === '360') {
+      return {
+        transform: `perspective(1200px) rotateY(${rotationAngle}deg)`,
+        transition: 'transform 0.1s ease-out',
+      };
+    }
+    if (activeAngle === 'left') {
+      return {
+        transform: 'perspective(1000px) rotateY(-22deg) scale(1.02)',
+        transition: 'transform 0.4s ease',
+      };
+    }
+    if (activeAngle === 'right') {
+      return {
+        transform: 'perspective(1000px) rotateY(22deg) scale(1.02)',
+        transition: 'transform 0.4s ease',
+      };
+    }
+    if (activeAngle === 'back') {
+      return {
+        transform: 'perspective(1000px) rotateY(180deg) scale(1.02)',
+        transition: 'transform 0.4s ease',
+      };
+    }
+    return {
+      transform: 'perspective(1000px) rotateY(0deg) scale(1)',
+      transition: 'transform 0.4s ease',
+    };
   };
 
   return (
     <section className="py-24 bg-plum text-ivory relative overflow-hidden" id="tryon">
       {/* Background ambient lighting */}
       <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-burgundy/40 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Live Camera Modal */}
+      <CameraModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={handleCameraCapture}
+        title="Atelier Portrait Camera"
+      />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         {/* Section Header */}
@@ -124,39 +241,73 @@ export const VirtualTryOnSection: React.FC = () => {
             <div className="lg:col-span-4 space-y-6">
               {/* Customer Photo Selector */}
               <div className="bg-plum/70 border border-champagne/20 rounded-xl p-5">
-                <span className="text-[11px] font-brand uppercase tracking-wider text-champagne block mb-3 font-bold">
-                  Step 1: Your Photo
-                </span>
-
-                <div className="grid grid-cols-2 gap-2.5 mb-4">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
-                  >
-                    <Upload className="w-4 h-4 text-champagne" />
-                    <span className="text-[10px] uppercase font-semibold">Upload Photo</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (fileInputRef.current) {
-                        fileInputRef.current.setAttribute('capture', 'user');
-                        fileInputRef.current.click();
-                      }
-                    }}
-                    className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
-                  >
-                    <Camera className="w-4 h-4 text-champagne" />
-                    <span className="text-[10px] uppercase font-semibold">Take Photo</span>
-                  </button>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-brand uppercase tracking-wider text-champagne font-bold">
+                    Step 1: Your Photo
+                  </span>
+                  {customerPhoto && (
+                    <button
+                      onClick={handleClearPhoto}
+                      className="text-[10px] text-rose hover:underline flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
                 </div>
+
+                {/* If Customer Uploaded Photo, show Preview Card */}
+                {customerPhoto ? (
+                  <div className="relative mb-4 rounded-xl overflow-hidden aspect-[4/3] border border-champagne/40 bg-charcoal">
+                    <img
+                      src={customerPhoto}
+                      alt="Your Uploaded Portrait"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 left-2 bg-plum-dark/90 px-2.5 py-0.5 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne">
+                      Your Portrait Active ✓
+                    </div>
+                    <div className="absolute bottom-2 inset-x-2 flex gap-2">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors"
+                      >
+                        Change Photo
+                      </button>
+                      <button
+                        onClick={() => setIsCameraOpen(true)}
+                        className="flex-1 bg-burgundy/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors"
+                      >
+                        Retake Camera
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5 mb-4">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
+                    >
+                      <Upload className="w-4 h-4 text-champagne" />
+                      <span className="text-[10px] uppercase font-semibold">Upload Photo</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsCameraOpen(true)}
+                      className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
+                    >
+                      <Camera className="w-4 h-4 text-champagne" />
+                      <span className="text-[10px] uppercase font-semibold">Take Photo</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Sample Avatars */}
                 <div>
@@ -169,10 +320,10 @@ export const VirtualTryOnSection: React.FC = () => {
                         key={m.id}
                         onClick={() => {
                           setSelectedSample(m.img);
-                          setCustomerPhoto(m.img);
+                          setCustomerPhoto(null);
                         }}
                         className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-transform ${
-                          selectedSample === m.img
+                          !customerPhoto && selectedSample === m.img
                             ? 'border-champagne scale-105 shadow-gold-subtle'
                             : 'border-transparent opacity-70 hover:opacity-100'
                         }`}
@@ -195,7 +346,11 @@ export const VirtualTryOnSection: React.FC = () => {
                   {products.map((prod) => (
                     <button
                       key={prod.id}
-                      onClick={() => setTryOnProduct(prod)}
+                      onClick={() => {
+                        setTryOnProduct(prod);
+                        setRenderedResultUrl(null);
+                        setTryOnGenerated(false);
+                      }}
                       className={`w-full flex items-center gap-3 p-2 rounded-lg border text-left transition-all ${
                         currentDress.id === prod.id
                           ? 'bg-burgundy/90 border-champagne text-champagne'
@@ -247,7 +402,13 @@ export const VirtualTryOnSection: React.FC = () => {
                 {(['front', 'left', 'right', 'back', '360'] as const).map((angle) => (
                   <button
                     key={angle}
-                    onClick={() => setActiveAngle(angle)}
+                    onClick={() => {
+                      setActiveAngle(angle);
+                      if (angle === 'front') setRotationAngle(0);
+                      else if (angle === 'left') setRotationAngle(-22);
+                      else if (angle === 'right') setRotationAngle(22);
+                      else if (angle === 'back') setRotationAngle(180);
+                    }}
                     className={`px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all ${
                       activeAngle === angle
                         ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-gold-subtle'
@@ -278,20 +439,26 @@ export const VirtualTryOnSection: React.FC = () => {
                       <Sparkles className="w-6 h-6 text-champagne" />
                     </div>
                     <p className="text-sm font-brand tracking-widest uppercase text-champagne">
-                      Re-rendering 360° drape tension & lighting...
+                      Synthesizing 360° drape tension & lighting...
                     </p>
                   </div>
                 ) : (
                   <>
-                    <ImageWithFallback
-                      src={getDisplayedImage()}
-                      alt={`${currentDress.name} - ${activeAngle} view`}
-                      aspectRatio="aspect-full"
-                      className="w-full h-full object-cover transition-all duration-500"
-                    />
+                    {/* The 3D Perspective Stage Container - renders the EXACT SAME LOOK across all angles */}
+                    <div
+                      className="w-full h-full flex items-center justify-center overflow-hidden"
+                      style={getTransformStyle()}
+                    >
+                      <ImageWithFallback
+                        src={getDisplayedImage()}
+                        alt={`${currentDress.name} - ${activeAngle} view`}
+                        aspectRatio="aspect-full"
+                        className="w-full h-full object-cover transition-all duration-300 select-none"
+                      />
+                    </div>
 
                     {/* Watermark / Brand Badge */}
-                    <div className="absolute top-4 left-4 bg-plum-dark/85 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                    <div className="absolute top-4 left-4 bg-plum-dark/85 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2 z-10">
                       <Sparkles className="w-3.5 h-3.5 text-champagne" />
                       <span className="text-[10px] font-brand tracking-wider uppercase text-ivory">
                         {currentDress.name}
@@ -299,15 +466,15 @@ export const VirtualTryOnSection: React.FC = () => {
                     </div>
 
                     {/* View Angle Pill */}
-                    <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne">
-                      {activeAngle === '360' ? '360° Multi-View Active' : `${activeAngle.toUpperCase()} Perspective`}
+                    <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10">
+                      {activeAngle === '360' ? `360° Multi-View (${rotationAngle}°)` : `${activeAngle.toUpperCase()} Perspective`}
                     </div>
 
-                    {/* 360° Multi-View Slider / Rotation Controls */}
+                    {/* 360° Multi-View Slider / Rotation Controls - NEVER DISAPPEARS on click */}
                     {activeAngle === '360' && (
-                      <div className="absolute bottom-4 inset-x-6 bg-plum-dark/90 backdrop-blur-md border border-champagne/40 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                      <div className="absolute bottom-4 inset-x-4 sm:inset-x-6 bg-plum-dark/95 backdrop-blur-md border border-champagne/40 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs z-20 shadow-2xl">
                         <div className="flex items-center gap-2 text-champagne">
-                          <RotateCw className="w-4 h-4 animate-spin" />
+                          <RotateCw className="w-4 h-4 text-champagne animate-spin" />
                           <span className="text-[10px] uppercase font-bold tracking-wider">
                             360° Multi-View Simulation
                           </span>
@@ -320,16 +487,37 @@ export const VirtualTryOnSection: React.FC = () => {
                             max="360"
                             value={rotationAngle}
                             onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setRotationAngle(val);
-                              if (val < 90) setActiveAngle('front');
-                              else if (val < 180) setActiveAngle('left');
-                              else if (val < 270) setActiveAngle('back');
-                              else setActiveAngle('right');
+                              setRotationAngle(Number(e.target.value));
                             }}
                             className="w-full accent-champagne cursor-pointer"
                           />
-                          <span className="text-[10px] text-ivory/60">360°</span>
+                          <span className="text-[10px] text-champagne font-mono font-bold">{rotationAngle}°</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setRotationAngle((prev) => (prev - 45 + 360) % 360)}
+                            className="px-2 py-1 rounded bg-plum text-[10px] text-champagne border border-champagne/20 hover:bg-burgundy transition-colors"
+                            title="Rotate 45 degrees left"
+                          >
+                            -45°
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRotationAngle((prev) => (prev + 45) % 360)}
+                            className="px-2 py-1 rounded bg-plum text-[10px] text-champagne border border-champagne/20 hover:bg-burgundy transition-colors"
+                            title="Rotate 45 degrees right"
+                          >
+                            +45°
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRotationAngle(0)}
+                            className="px-2 py-1 rounded bg-plum text-[10px] text-champagne border border-champagne/20 hover:bg-burgundy transition-colors"
+                            title="Reset to front"
+                          >
+                            Reset
+                          </button>
                         </div>
                       </div>
                     )}

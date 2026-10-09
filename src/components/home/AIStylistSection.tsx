@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Sparkles, Camera, Upload, Check, Wand2, Sliders, RefreshCw, ShoppingBag, Eye } from 'lucide-react';
+import { Sparkles, Camera, Upload, Check, Wand2, Sliders, RefreshCw, ShoppingBag, Eye, X } from 'lucide-react';
 import { ImageWithFallback } from '../common/ImageWithFallback';
+import { CameraModal } from '../common/CameraModal';
 import { PRODUCTS_DATA } from '../../data/products';
 import { aiProviders } from '../../services/aiProvider';
 
 export const AIStylistSection: React.FC = () => {
-  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products } = useApp();
+  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto } = useApp();
 
   const [step, setStep] = useState<'input' | 'processing' | 'result'>('input');
-  const [photoSelected, setPhotoSelected] = useState<string | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [ageGroup, setAgeGroup] = useState('25-34');
@@ -37,14 +39,27 @@ export const AIStylistSection: React.FC = () => {
   const [recommendationReason, setRecommendationReason] = useState<string>('');
   const [geminiRecommendedProduct, setGeminiRecommendedProduct] = useState<any>(null);
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setCustomerPhoto(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleCreateLook = async () => {
     setStep('processing');
     setAiProviderStatus('Running Gemini 1.5 Flash fashion intelligence & catalog analysis...');
 
     try {
-      if (photoSelected) {
+      if (customerPhoto) {
         setAiProviderStatus('Analyzing skin undertones & contrast palette via Vision...');
-        await aiProviders.vision.analyzeImage({ imageFileOrUrl: photoSelected });
+        await aiProviders.vision.analyzeImage({ imageFileOrUrl: customerPhoto });
       }
 
       const stylistRes = await (aiProviders.stylist as any).analyzeAndRecommend(
@@ -58,7 +73,7 @@ export const AIStylistSection: React.FC = () => {
             budget,
             style: styleVibe,
           },
-          userPhotoUrl: photoSelected || undefined,
+          userPhotoUrl: customerPhoto || undefined,
         },
         products
       );
@@ -91,32 +106,39 @@ export const AIStylistSection: React.FC = () => {
     return scored[0]?.product || products[0];
   }, [geminiRecommendedProduct, products, selectedOccasion, preferredColors, season, dressType]);
 
-
   return (
     <section className="py-24 bg-plum-dark text-ivory relative overflow-hidden" id="ai-stylist">
       {/* Background glow */}
       <div className="absolute top-1/4 -left-20 w-96 h-96 bg-burgundy/40 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-mauve/30 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Camera Capture Modal */}
+      <CameraModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={(photo) => setCustomerPhoto(photo)}
+        title="Atelier Portrait Scanner"
+      />
+
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-burgundy/80 text-champagne border border-champagne/30 text-[10px] font-brand uppercase tracking-[0.25em] mb-4 shadow-gold-subtle">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-burgundy text-champagne border border-champagne/30 text-[10px] font-brand uppercase tracking-[0.25em] mb-4 shadow-gold-subtle">
             <Sparkles className="w-3 h-3 text-champagne animate-pulse" />
-            <span>Neural Haute Couture Engine</span>
+            <span>Google Gemini 1.5 Powered Stylist</span>
           </div>
           <h2 className="text-3xl sm:text-5xl lg:text-6xl font-editorial font-bold text-ivory tracking-tight uppercase mb-4">
-            MEET YOUR PERSONAL AI STYLIST
+            AI PERSONAL STYLIST
           </h2>
           <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-champagne to-transparent mx-auto mb-6" />
-          <p className="text-sm sm:text-base text-ivory/75 max-w-2xl mx-auto leading-relaxed font-light">
-            Trained on decades of Pakistani bridal couture archives, our neural styling engine synthesizes your event, facial undertones, and silhouettes into a bespoke masterpiece.
+          <p className="text-sm sm:text-base text-ivory/70 max-w-2xl mx-auto leading-relaxed font-light">
+            Trained on generations of royal Pakistani bridal heritage and Mughal aesthetics. Share your occasion, body architecture, and color palette for tailored haute couture synthesis.
           </p>
         </div>
 
         {/* Processing State */}
         {step === 'processing' && (
-          <div className="bg-plum/80 border border-champagne/30 rounded-2xl p-12 max-w-xl mx-auto text-center shadow-luxury flex flex-col items-center">
+          <div className="bg-plum/80 border border-champagne/30 rounded-2xl p-12 max-w-xl mx-auto text-center flex flex-col items-center shadow-luxury">
             <div className="w-20 h-20 rounded-full border-2 border-champagne border-t-transparent animate-spin flex items-center justify-center mb-6">
               <Sparkles className="w-8 h-8 text-champagne animate-pulse" />
             </div>
@@ -158,19 +180,33 @@ export const AIStylistSection: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-              <div className="md:col-span-5 rounded-xl overflow-hidden aspect-[3/4] relative border border-champagne/30 shadow-lg">
-                <ImageWithFallback
-                  src={recommendedProduct.images.front}
-                  alt={recommendedProduct.name}
-                  aspectRatio="aspect-[3/4]"
-                  className="w-full h-full object-cover"
-                />
-                <span className="absolute top-3 left-3 bg-plum-dark/80 text-champagne text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-champagne/30">
-                  Recommended For {selectedOccasion}
-                </span>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+              {/* Product and Uploaded Photo Stage (5 cols) */}
+              <div className="md:col-span-5 space-y-4">
+                <div className="rounded-xl overflow-hidden aspect-[3/4] relative border border-champagne/30 shadow-lg bg-charcoal">
+                  <ImageWithFallback
+                    src={recommendedProduct.images.front}
+                    alt={recommendedProduct.name}
+                    aspectRatio="aspect-[3/4]"
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute top-3 left-3 bg-plum-dark/80 text-champagne text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-champagne/30">
+                    Recommended For {selectedOccasion}
+                  </span>
+
+                  {/* If user uploaded their photo, show inset badge */}
+                  {customerPhoto && (
+                    <div className="absolute bottom-3 right-3 w-20 h-20 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal">
+                      <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-cover" />
+                      <div className="absolute inset-x-0 bottom-0 bg-plum-dark/90 text-center py-0.5 text-[8px] font-brand uppercase text-champagne">
+                        Your Portrait
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
+              {/* Recommended Details (7 cols) */}
               <div className="md:col-span-7 space-y-6">
                 <div>
                   <div className="text-xs font-brand tracking-widest uppercase text-champagne mb-1">
@@ -237,31 +273,71 @@ export const AIStylistSection: React.FC = () => {
         {step === 'input' && (
           <div className="bg-plum/70 border border-champagne/25 rounded-2xl p-6 sm:p-10 shadow-luxury max-w-5xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {/* Field 1: Photo Upload / Camera */}
+              {/* Field 1: Real Photo Upload / Live Camera */}
               <div className="bg-plum-dark/60 border border-champagne/20 rounded-xl p-4">
-                <label className="text-[11px] font-brand uppercase tracking-wider text-champagne block mb-2 font-bold">
-                  01. Photo & Undertone Scan
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPhotoSelected('Selfie Portrait attached ✓')}
-                    className="flex-1 bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-center text-xs flex flex-col items-center justify-center gap-1 transition-colors"
-                  >
-                    <Upload className="w-4 h-4 text-champagne" />
-                    <span className="text-[10px] uppercase font-semibold">Upload</span>
-                  </button>
-                  <button
-                    onClick={() => setPhotoSelected('Live Camera snapshot ready ✓')}
-                    className="flex-1 bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-center text-xs flex flex-col items-center justify-center gap-1 transition-colors"
-                  >
-                    <Camera className="w-4 h-4 text-champagne" />
-                    <span className="text-[10px] uppercase font-semibold">Camera</span>
-                  </button>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-brand uppercase tracking-wider text-champagne font-bold">
+                    01. Photo & Undertone Scan
+                  </label>
+                  {customerPhoto && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomerPhoto(null)}
+                      className="text-[10px] text-rose hover:underline flex items-center gap-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  )}
                 </div>
-                {photoSelected && (
-                  <span className="text-[10px] text-champagne-light mt-2 block font-medium">
-                    {photoSelected}
-                  </span>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                {customerPhoto ? (
+                  <div className="relative rounded-lg overflow-hidden aspect-[4/3] border border-champagne/30 bg-charcoal">
+                    <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-cover" />
+                    <div className="absolute bottom-2 inset-x-2 flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 bg-plum-dark/90 hover:bg-burgundy text-champagne text-[10px] py-1 rounded border border-champagne/20"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsCameraOpen(true)}
+                        className="flex-1 bg-burgundy/90 hover:bg-burgundy text-champagne text-[10px] py-1 rounded border border-champagne/20"
+                      >
+                        Camera
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-center text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
+                    >
+                      <Upload className="w-4 h-4 text-champagne" />
+                      <span className="text-[10px] uppercase font-semibold">Upload Photo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsCameraOpen(true)}
+                      className="flex-1 bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-center text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
+                    >
+                      <Camera className="w-4 h-4 text-champagne" />
+                      <span className="text-[10px] uppercase font-semibold">Live Camera</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -299,7 +375,7 @@ export const AIStylistSection: React.FC = () => {
                 </select>
               </div>
 
-              {/* Field 4: Occasion (All Required Pakistani Occasions) */}
+              {/* Field 4: Occasion */}
               <div className="bg-plum-dark/60 border border-champagne/20 rounded-xl p-4">
                 <label className="text-[11px] font-brand uppercase tracking-wider text-champagne block mb-2 font-bold">
                   04. Pakistani Occasion
@@ -440,6 +516,7 @@ export const AIStylistSection: React.FC = () => {
             {/* CTA */}
             <div className="text-center pt-2">
               <button
+                type="button"
                 onClick={handleCreateLook}
                 className="w-full sm:w-auto bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-[0.25em] px-12 py-4 rounded-xl shadow-gold-glow hover:scale-105 transition-all flex items-center justify-center gap-3 mx-auto"
               >

@@ -77,6 +77,8 @@ interface AppContextType {
   setActiveFilterOccasion: (occ: string | null) => void;
   activeFilterEvent: string | null;
   setActiveFilterEvent: (event: string | null) => void;
+  customerPhoto: string | null;
+  setCustomerPhoto: (photo: string | null) => void;
 }
 
 const getInitialView = (): ViewMode => {
@@ -237,6 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [activeFilterOccasion, setActiveFilterOccasion] = useState<string | null>(null);
   const [activeFilterEvent, setActiveFilterEvent] = useState<string | null>(null);
+  const [customerPhoto, setCustomerPhoto] = useState<string | null>(null);
 
   // Derived filtered subsets
   const newArrivals = useMemo(
@@ -634,6 +637,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveFilterOccasion,
         activeFilterEvent,
         setActiveFilterEvent,
+        customerPhoto,
+        setCustomerPhoto,
       }}
     >
       {children}

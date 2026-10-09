@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Upload, Camera, Calendar, Sparkles, Palette, DollarSign, Check, ArrowRight } from 'lucide-react';
+import { CameraModal } from '../common/CameraModal';
 
 export const QuickStyleFinder: React.FC = () => {
-  const { setActiveView, setActiveFilterOccasion, setActiveFilterEvent } = useApp();
+  const { setActiveView, setActiveFilterOccasion, setActiveFilterEvent, customerPhoto, setCustomerPhoto } = useApp();
 
-  const [hasPhoto, setHasPhoto] = useState(false);
-  const [photoType, setPhotoType] = useState<'upload' | 'camera' | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [selectedOccasion, setSelectedOccasion] = useState('Bridal & Barat');
   const [selectedEvent, setSelectedEvent] = useState('Evening Grand Gala');
   const [selectedStyle, setSelectedStyle] = useState('Royal Heritage Couture');
   const [selectedBudget, setSelectedBudget] = useState('PKR 250,000+');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreateLook = () => {
     setActiveView('stylist');
@@ -18,6 +20,17 @@ export const QuickStyleFinder: React.FC = () => {
 
   return (
     <section className="relative -mt-10 sm:-mt-14 z-20 max-w-6xl mx-auto px-4 sm:px-6">
+      {/* Live Camera Modal */}
+      <CameraModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={(photo) => {
+          setCustomerPhoto(photo);
+          setActiveView('stylist');
+        }}
+        title="Quick Portrait Scanner"
+      />
+
       <div className="glass-burgundy rounded-2xl p-6 sm:p-8 md:p-10 border border-champagne/30 shadow-luxury">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-champagne/15 gap-4">
           <div>
@@ -39,45 +52,29 @@ export const QuickStyleFinder: React.FC = () => {
           {/* Hidden File Input for Device Photo Upload */}
           <input
             type="file"
-            id="quick-photo-upload"
+            ref={fileInputRef}
             accept="image/*"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
-                setPhotoType('upload');
-                setHasPhoto(true);
-                // Also scroll/navigate to AI Stylist with notification
-                setActiveView('stylist');
-              }
-            }}
-          />
-
-          {/* Hidden File Input for Camera */}
-          <input
-            type="file"
-            id="quick-camera-upload"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                setPhotoType('camera');
-                setHasPhoto(true);
-                setActiveView('stylist');
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === 'string') {
+                    setCustomerPhoto(reader.result);
+                    setActiveView('stylist');
+                  }
+                };
+                reader.readAsDataURL(file);
               }
             }}
           />
 
           {/* Card 1: Upload Photo -> Triggers File Upload and Links to AI Stylist */}
           <button
-            onClick={() => {
-              const input = document.getElementById('quick-photo-upload') as HTMLInputElement;
-              if (input) input.click();
-            }}
+            onClick={() => fileInputRef.current?.click()}
             className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 group ${
-              photoType === 'upload'
+              customerPhoto
                 ? 'bg-plum-light/80 border-champagne shadow-gold-subtle'
                 : 'bg-plum-dark/60 border-champagne/20 hover:border-champagne/60 hover:bg-plum/50'
             }`}
@@ -89,19 +86,16 @@ export const QuickStyleFinder: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">01. Photo Scan</span>
               <p className="text-xs font-semibold text-ivory mt-0.5 group-hover:text-champagne transition-colors">Upload Photo</p>
               <span className="text-[10px] text-champagne-light underline decoration-champagne/40">
-                {photoType === 'upload' ? 'Photo Attached ✓' : 'Upload & Analyze ➔'}
+                {customerPhoto ? 'Photo Attached ✓' : 'Upload & Analyze ➔'}
               </span>
             </div>
           </button>
 
-          {/* Card 2: Camera -> Triggers Camera and Links to AI Stylist */}
+          {/* Card 2: Camera -> Triggers Live Webcam Modal */}
           <button
-            onClick={() => {
-              const input = document.getElementById('quick-camera-upload') as HTMLInputElement;
-              if (input) input.click();
-            }}
+            onClick={() => setIsCameraOpen(true)}
             className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 group ${
-              photoType === 'camera'
+              customerPhoto
                 ? 'bg-plum-light/80 border-champagne shadow-gold-subtle'
                 : 'bg-plum-dark/60 border-champagne/20 hover:border-champagne/60 hover:bg-plum/50'
             }`}
@@ -113,7 +107,7 @@ export const QuickStyleFinder: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">02. Live Camera</span>
               <p className="text-xs font-semibold text-ivory mt-0.5 group-hover:text-champagne transition-colors">Take Photo</p>
               <span className="text-[10px] text-champagne-light underline decoration-champagne/40">
-                {photoType === 'camera' ? 'Camera Ready ✓' : 'Instant Selfie ➔'}
+                {customerPhoto ? 'Camera Saved ✓' : 'Live Snapshot ➔'}
               </span>
             </div>
           </button>

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from './ImageWithFallback';
-import { X, Sparkles, RotateCw, ShoppingBag, Check, ArrowLeft } from 'lucide-react';
+import { X, Sparkles, RotateCw, ShoppingBag, ArrowLeft } from 'lucide-react';
 
 export const TryOnModal: React.FC = () => {
-  const { isTryOnModalOpen, setIsTryOnModalOpen, tryOnProduct, addToCart } = useApp();
+  const { isTryOnModalOpen, setIsTryOnModalOpen, tryOnProduct, addToCart, customerPhoto } = useApp();
 
   const dress = tryOnProduct || PRODUCTS_DATA[0];
   const [activeAngle, setActiveAngle] = useState<'front' | 'left' | 'right' | 'back' | '360'>('front');
@@ -13,11 +13,40 @@ export const TryOnModal: React.FC = () => {
 
   if (!isTryOnModalOpen) return null;
 
+  // Base image: keep the EXACT same dress/portrait across all perspectives
   const getDisplayedImage = () => {
-    if (activeAngle === 'back' && dress.images.back) return dress.images.back;
-    if (activeAngle === 'left' && dress.images.left) return dress.images.left;
-    if (activeAngle === 'right' && dress.images.right) return dress.images.right;
     return dress.images.front;
+  };
+
+  const getTransformStyle = (): React.CSSProperties => {
+    if (activeAngle === '360') {
+      return {
+        transform: `perspective(1200px) rotateY(${rotationAngle}deg)`,
+        transition: 'transform 0.1s ease-out',
+      };
+    }
+    if (activeAngle === 'left') {
+      return {
+        transform: 'perspective(1000px) rotateY(-22deg) scale(1.02)',
+        transition: 'transform 0.4s ease',
+      };
+    }
+    if (activeAngle === 'right') {
+      return {
+        transform: 'perspective(1000px) rotateY(22deg) scale(1.02)',
+        transition: 'transform 0.4s ease',
+      };
+    }
+    if (activeAngle === 'back') {
+      return {
+        transform: 'perspective(1000px) rotateY(180deg) scale(1.02)',
+        transition: 'transform 0.4s ease',
+      };
+    }
+    return {
+      transform: 'perspective(1000px) rotateY(0deg) scale(1)',
+      transition: 'transform 0.4s ease',
+    };
   };
 
   return (
@@ -61,7 +90,13 @@ export const TryOnModal: React.FC = () => {
           {(['front', 'left', 'right', 'back', '360'] as const).map((ang) => (
             <button
               key={ang}
-              onClick={() => setActiveAngle(ang)}
+              onClick={() => {
+                setActiveAngle(ang);
+                if (ang === 'front') setRotationAngle(0);
+                else if (ang === 'left') setRotationAngle(-22);
+                else if (ang === 'right') setRotationAngle(22);
+                else if (ang === 'back') setRotationAngle(180);
+              }}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-brand uppercase tracking-wider transition-all ${
                 activeAngle === ang
                   ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-sm'
@@ -75,36 +110,66 @@ export const TryOnModal: React.FC = () => {
 
         {/* Display Stage */}
         <div className="relative aspect-[3/4] sm:aspect-[4/3] rounded-2xl overflow-hidden bg-charcoal border border-champagne/30 flex items-center justify-center">
-          <ImageWithFallback
-            src={getDisplayedImage()}
-            alt={dress.name}
-            aspectRatio="aspect-full"
-            className="w-full h-full object-cover"
-          />
-
-          <div className="absolute top-4 left-4 bg-plum-dark/90 px-3 py-1.5 rounded-lg border border-champagne/30 text-[10px] font-brand uppercase tracking-wider text-champagne">
-            {activeAngle === '360' ? '360° Multi-View Active' : `${activeAngle.toUpperCase()} PERSPECTIVE`}
+          <div
+            className="w-full h-full flex items-center justify-center overflow-hidden"
+            style={getTransformStyle()}
+          >
+            <ImageWithFallback
+              src={getDisplayedImage()}
+              alt={dress.name}
+              aspectRatio="aspect-full"
+              className="w-full h-full object-cover select-none pointer-events-none"
+            />
           </div>
 
+          <div className="absolute top-4 left-4 bg-plum-dark/90 px-3 py-1.5 rounded-lg border border-champagne/30 text-[10px] font-brand uppercase tracking-wider text-champagne z-10">
+            {activeAngle === '360' ? `360° Multi-View (${rotationAngle}°)` : `${activeAngle.toUpperCase()} PERSPECTIVE`}
+          </div>
+
+          {/* 360 Rotation Control Bar - NEVER disappears on click */}
           {activeAngle === '360' && (
-            <div className="absolute bottom-4 inset-x-6 bg-plum-dark/90 backdrop-blur-md border border-champagne/40 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
-              <span className="text-[10px] text-champagne font-bold uppercase">Rotate 360°</span>
-              <input
-                type="range"
-                min="0"
-                max="360"
-                value={rotationAngle}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setRotationAngle(val);
-                  if (val < 90) setActiveAngle('front');
-                  else if (val < 180) setActiveAngle('left');
-                  else if (val < 270) setActiveAngle('back');
-                  else setActiveAngle('right');
-                }}
-                className="w-full accent-champagne cursor-pointer"
-              />
-              <span className="text-[10px] text-ivory/60">{rotationAngle}°</span>
+            <div className="absolute bottom-4 inset-x-4 sm:inset-x-6 bg-plum-dark/95 backdrop-blur-md border border-champagne/40 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs z-20 shadow-2xl">
+              <span className="text-[10px] text-champagne font-bold uppercase flex items-center gap-1.5">
+                <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                Rotate 360°
+              </span>
+              <div className="flex items-center gap-3 w-full sm:w-1/2">
+                <span className="text-[10px] text-ivory/60">0°</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="360"
+                  value={rotationAngle}
+                  onChange={(e) => {
+                    setRotationAngle(Number(e.target.value));
+                  }}
+                  className="w-full accent-champagne cursor-pointer"
+                />
+                <span className="text-[10px] text-champagne font-mono font-bold">{rotationAngle}°</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setRotationAngle((prev) => (prev - 45 + 360) % 360)}
+                  className="px-2 py-1 rounded bg-plum text-[10px] text-champagne border border-champagne/20 hover:bg-burgundy transition-colors"
+                >
+                  -45°
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRotationAngle((prev) => (prev + 45) % 360)}
+                  className="px-2 py-1 rounded bg-plum text-[10px] text-champagne border border-champagne/20 hover:bg-burgundy transition-colors"
+                >
+                  +45°
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRotationAngle(0)}
+                  className="px-2 py-1 rounded bg-plum text-[10px] text-champagne border border-champagne/20 hover:bg-burgundy transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
             </div>
           )}
         </div>
