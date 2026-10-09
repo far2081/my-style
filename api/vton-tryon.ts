@@ -100,18 +100,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // 1. Verify Server-Side Environment Variables
-  const apiKey = process.env.VTON_API_KEY;
-  let apiHost = process.env.VTON_API_HOST || EXPECTED_HOST;
+  const apiKey =
+    process.env.VTON_API_KEY ||
+    process.env.VTON_D_API_KEY ||
+    process.env.VTOND_API_KEY ||
+    process.env.RAPIDAPI_KEY ||
+    process.env.RAPID_API_KEY;
+
+  let apiHost =
+    process.env.VTON_API_HOST ||
+    process.env.VTON_D_API_HOST ||
+    EXPECTED_HOST;
 
   if (apiHost.trim().toLowerCase() !== EXPECTED_HOST) {
     apiHost = EXPECTED_HOST;
   }
 
+  // Safe server-side diagnostic logging (NEVER logs actual key values)
+  console.log('[VTON Diagnostic]', {
+    keyConfigured: Boolean(apiKey && apiKey.trim() !== '' && !apiKey.includes('placeholder')),
+    keyLength: apiKey ? apiKey.trim().length : 0,
+    apiHost,
+    nodeEnv: process.env.NODE_ENV || 'production',
+  });
+
   if (!apiKey || apiKey.trim() === '' || apiKey.includes('placeholder')) {
-    console.error('[VTON Error] VTON_API_KEY is not configured in Vercel environment variables.');
+    console.error('[VTON Error] VTON API key is not configured in Vercel environment variables.');
     return res.status(503).json({
       error: 'Virtual Try-On is not configured.',
-      detail: 'VTON_API_KEY environment variable is missing on the server.',
+      detail: 'VTON_API_KEY / VTON_D_API_KEY environment variable is missing in Vercel.',
       configured: false,
     });
   }

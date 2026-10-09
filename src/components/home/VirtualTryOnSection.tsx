@@ -19,6 +19,7 @@ export const VirtualTryOnSection: React.FC = () => {
     setCustomerPhoto,
     personalizedTryOnUrl,
     setPersonalizedTryOnUrl,
+    personalizedTryOnProductId,
     setPersonalizedTryOnProductId,
     activeFilterOccasion,
   } = useApp();
@@ -28,8 +29,21 @@ export const VirtualTryOnSection: React.FC = () => {
   const [activeView, setActiveView] = useState<GarmentViewAngle>('front');
   const [isGenerating, setIsGenerating] = useState(false);
   const [tryOnGenerated, setTryOnGenerated] = useState(false);
-  const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(personalizedTryOnUrl || null);
+  const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(
+    personalizedTryOnProductId === currentDress.id ? personalizedTryOnUrl : null
+  );
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+
+  // Clear stale try-on result whenever a new dress is selected
+  useEffect(() => {
+    if (personalizedTryOnProductId && personalizedTryOnProductId !== currentDress.id) {
+      setRenderedResultUrl(null);
+      setTryOnGenerated(false);
+    } else if (personalizedTryOnProductId === currentDress.id && personalizedTryOnUrl) {
+      setRenderedResultUrl(personalizedTryOnUrl);
+      setTryOnGenerated(true);
+    }
+  }, [currentDress.id, personalizedTryOnProductId, personalizedTryOnUrl]);
 
   // Category & Color Filtering for Step 2
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
