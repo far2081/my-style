@@ -257,6 +257,26 @@ export const CollectionsView: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick Category Navigation Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 no-scrollbar">
+          <span className="text-[11px] font-brand uppercase tracking-wider text-champagne/70 mr-1 hidden sm:inline">
+            Category:
+          </span>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-2 rounded-xl text-xs font-brand uppercase tracking-wider whitespace-nowrap transition-all border ${
+                selectedCategory === cat
+                  ? 'bg-champagne text-plum font-bold border-champagne shadow-gold-subtle'
+                  : 'bg-plum-dark/80 text-ivory/70 border-champagne/20 hover:border-champagne/50 hover:text-champagne'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
         {/* Main Grid: Sidebar + Products */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Desktop Elegant Sidebar Filters (3 cols) */}
