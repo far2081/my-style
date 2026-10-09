@@ -55,26 +55,34 @@ export const VirtualTryOnSection: React.FC = () => {
     if (activeFilterOccasion) {
       const occ = activeFilterOccasion.toLowerCase();
       if (occ.includes('barat')) setSelectedCategory('Barat');
-      else if (occ.includes('walima')) setSelectedCategory('Walima');
+      else if (occ.includes('nikah')) setSelectedCategory('Nikah');
+      else if (occ.includes('valima') || occ.includes('walima')) setSelectedCategory('Valima');
+      else if (occ.includes('party')) setSelectedCategory('Party');
+      else if (occ.includes('casual')) setSelectedCategory('Casual');
+      else if (occ.includes('winter')) setSelectedCategory('Winter');
+      else if (occ.includes('summer')) setSelectedCategory('Summer');
       else if (occ.includes('mehndi')) setSelectedCategory('Mehndi');
       else if (occ.includes('bridal')) setSelectedCategory('Bridal');
       else if (occ.includes('formal')) setSelectedCategory('Formal');
       else if (occ.includes('festive')) setSelectedCategory('Festive');
       else if (occ.includes('luxury') || occ.includes('pret')) setSelectedCategory('Luxury Pret');
-      else if (occ.includes('casual')) setSelectedCategory('Casual');
     }
   }, [activeFilterOccasion]);
 
   const categories = [
     { label: 'All', value: 'All' },
     { label: 'Barat', value: 'Barat' },
-    { label: 'Walima', value: 'Walima' },
-    { label: 'Mehndi', value: 'Mehndi' },
+    { label: 'Nikah', value: 'Nikah' },
+    { label: 'Valima', value: 'Valima' },
+    { label: 'Party', value: 'Party' },
+    { label: 'Casual', value: 'Casual' },
+    { label: 'Winter', value: 'Winter' },
+    { label: 'Summer', value: 'Summer' },
     { label: 'Bridal', value: 'Bridal' },
+    { label: 'Mehndi', value: 'Mehndi' },
     { label: 'Formal', value: 'Formal' },
     { label: 'Festive', value: 'Festive' },
     { label: 'Luxury Pret', value: 'Luxury Pret' },
-    { label: 'Casual', value: 'Casual' },
   ];
 
   const colorOptions = [
@@ -102,7 +110,21 @@ export const VirtualTryOnSection: React.FC = () => {
         const pOccasion = (p.occasion || '').toLowerCase().replace(/[\s-]/g, '');
         const pCategory = (p.category || '').toLowerCase().replace(/[\s-]/g, '');
         const pEvent = (p.event || '').toLowerCase().replace(/[\s-]/g, '');
-        if (!pOccasion.includes(catKey) && !pCategory.includes(catKey) && !pEvent.includes(catKey)) {
+        const pSeason = (p.season || '').toLowerCase().replace(/[\s-]/g, '');
+        const pTags = (p.tags || []).map((t: string) => t.toLowerCase().replace(/[\s-]/g, '')).join(' ');
+
+        const isValimaWalima =
+          (catKey === 'valima' || catKey === 'walima') &&
+          (pOccasion.includes('valima') || pOccasion.includes('walima') || pEvent.includes('valima') || pEvent.includes('walima'));
+
+        if (
+          !isValimaWalima &&
+          !pOccasion.includes(catKey) &&
+          !pCategory.includes(catKey) &&
+          !pEvent.includes(catKey) &&
+          !pSeason.includes(catKey) &&
+          !pTags.includes(catKey)
+        ) {
           return false;
         }
       }

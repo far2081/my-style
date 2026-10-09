@@ -146,12 +146,15 @@ export const QuickStyleFinder: React.FC = () => {
                 }}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
-                <option value="Bridal & Barat" className="bg-plum text-ivory">Bridal & Barat</option>
-                <option value="Walima" className="bg-plum text-ivory">Walima Pastels</option>
-                <option value="Mehndi & Mayo" className="bg-plum text-ivory">Mehndi & Mayo</option>
+                <option value="Barat" className="bg-plum text-ivory">Barat Royal</option>
                 <option value="Nikah" className="bg-plum text-ivory">Nikah Sacred Ivory</option>
-                <option value="Engagement" className="bg-plum text-ivory">Engagement Glam</option>
-                <option value="Luxury Pret / Eid" className="bg-plum text-ivory">Luxury Pret / Eid</option>
+                <option value="Valima" className="bg-plum text-ivory">Valima Pastels</option>
+                <option value="Party" className="bg-plum text-ivory">Party Wear Glam</option>
+                <option value="Casual" className="bg-plum text-ivory">Casual Everyday Pret</option>
+                <option value="Winter" className="bg-plum text-ivory">Winter Velvet & Shawls</option>
+                <option value="Summer" className="bg-plum text-ivory">Summer Breezy Lawn</option>
+                <option value="Bridal" className="bg-plum text-ivory">Bridal Couture</option>
+                <option value="Mehndi" className="bg-plum text-ivory">Mehndi & Mayo</option>
               </select>
             </div>
           </div>

@@ -38,7 +38,20 @@ export const CollectionsView: React.FC = () => {
   const [sortBy, setSortBy] = useState<string>('ai-recommended');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
 
-  const categories = ['All', 'Bridal', 'Formal', 'Luxury Pret', 'Festive', 'Casual'];
+  const categories = [
+    'All',
+    'Barat',
+    'Nikah',
+    'Valima',
+    'Party',
+    'Casual',
+    'Winter',
+    'Summer',
+    'Bridal',
+    'Formal',
+    'Luxury Pret',
+    'Festive'
+  ];
   const seasons = ['All', 'Summer', 'Winter', 'Spring', 'All Season'];
   const availabilities = ['All', 'In Stock', 'Bespoke / Made to Order', 'Limited Edition'];
 
@@ -70,8 +83,26 @@ export const CollectionsView: React.FC = () => {
         return false;
       }
 
-      // Category
-      if (selectedCategory !== 'All' && p.category !== selectedCategory) return false;
+      // Category / Occasion / Season matching
+      if (selectedCategory !== 'All') {
+        const catL = selectedCategory.toLowerCase().replace(/[\s-]/g, '');
+        const pCatL = (p.category || '').toLowerCase().replace(/[\s-]/g, '');
+        const pOccL = (p.occasion || '').toLowerCase().replace(/[\s-]/g, '');
+        const pEvtL = (p.event || '').toLowerCase().replace(/[\s-]/g, '');
+        const pSeaL = (p.season || '').toLowerCase().replace(/[\s-]/g, '');
+        const isValimaWalima =
+          (catL === 'valima' || catL === 'walima') &&
+          (pOccL.includes('valima') || pOccL.includes('walima') || pEvtL.includes('valima') || pEvtL.includes('walima'));
+
+        const isMatch =
+          isValimaWalima ||
+          pCatL.includes(catL) ||
+          pOccL.includes(catL) ||
+          pEvtL.includes(catL) ||
+          pSeaL.includes(catL);
+
+        if (!isMatch) return false;
+      }
 
       // Fabric
       if (selectedFabric !== 'All' && p.fabric !== selectedFabric) return false;
