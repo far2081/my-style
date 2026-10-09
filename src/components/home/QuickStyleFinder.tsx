@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Upload, Camera, Calendar, Sparkles, Palette, DollarSign, Check, ArrowRight } from 'lucide-react';
 
 export const QuickStyleFinder: React.FC = () => {
-  const { setActiveView } = useApp();
+  const { setActiveView, setActiveFilterOccasion, setActiveFilterEvent } = useApp();
 
   const [hasPhoto, setHasPhoto] = useState(false);
   const [photoType, setPhotoType] = useState<'upload' | 'camera' | null>(null);
@@ -36,64 +36,117 @@ export const QuickStyleFinder: React.FC = () => {
 
         {/* 6 Visual Input Cards Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-8">
-          {/* Card 1: Upload Photo */}
+          {/* Hidden File Input for Device Photo Upload */}
+          <input
+            type="file"
+            id="quick-photo-upload"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setPhotoType('upload');
+                setHasPhoto(true);
+                // Also scroll/navigate to AI Stylist with notification
+                setActiveView('stylist');
+              }
+            }}
+          />
+
+          {/* Hidden File Input for Camera */}
+          <input
+            type="file"
+            id="quick-camera-upload"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setPhotoType('camera');
+                setHasPhoto(true);
+                setActiveView('stylist');
+              }
+            }}
+          />
+
+          {/* Card 1: Upload Photo -> Triggers File Upload and Links to AI Stylist */}
           <button
             onClick={() => {
-              setPhotoType('upload');
-              setHasPhoto(true);
+              const input = document.getElementById('quick-photo-upload') as HTMLInputElement;
+              if (input) input.click();
             }}
-            className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 ${
+            className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 group ${
               photoType === 'upload'
                 ? 'bg-plum-light/80 border-champagne shadow-gold-subtle'
-                : 'bg-plum-dark/60 border-champagne/20 hover:border-champagne/50 hover:bg-plum/40'
+                : 'bg-plum-dark/60 border-champagne/20 hover:border-champagne/60 hover:bg-plum/50'
             }`}
           >
-            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
+            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne group-hover:scale-110 transition-transform">
               <Upload className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">Input 01</span>
-              <p className="text-xs font-semibold text-ivory mt-0.5">Upload Photo</p>
-              <span className="text-[10px] text-champagne-light">
-                {photoType === 'upload' ? 'Photo Attached ✓' : 'Select from device'}
+              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">01. Photo Scan</span>
+              <p className="text-xs font-semibold text-ivory mt-0.5 group-hover:text-champagne transition-colors">Upload Photo</p>
+              <span className="text-[10px] text-champagne-light underline decoration-champagne/40">
+                {photoType === 'upload' ? 'Photo Attached ✓' : 'Upload & Analyze ➔'}
               </span>
             </div>
           </button>
 
-          {/* Card 2: Camera */}
+          {/* Card 2: Camera -> Triggers Camera and Links to AI Stylist */}
           <button
             onClick={() => {
-              setPhotoType('camera');
-              setHasPhoto(true);
+              const input = document.getElementById('quick-camera-upload') as HTMLInputElement;
+              if (input) input.click();
             }}
-            className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 ${
+            className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 group ${
               photoType === 'camera'
                 ? 'bg-plum-light/80 border-champagne shadow-gold-subtle'
-                : 'bg-plum-dark/60 border-champagne/20 hover:border-champagne/50 hover:bg-plum/40'
+                : 'bg-plum-dark/60 border-champagne/20 hover:border-champagne/60 hover:bg-plum/50'
             }`}
           >
-            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
+            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne group-hover:scale-110 transition-transform">
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">Input 02</span>
-              <p className="text-xs font-semibold text-ivory mt-0.5">Live Camera</p>
-              <span className="text-[10px] text-champagne-light">
-                {photoType === 'camera' ? 'Camera Ready ✓' : 'Instant AI selfie'}
+              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">02. Live Camera</span>
+              <p className="text-xs font-semibold text-ivory mt-0.5 group-hover:text-champagne transition-colors">Take Photo</p>
+              <span className="text-[10px] text-champagne-light underline decoration-champagne/40">
+                {photoType === 'camera' ? 'Camera Ready ✓' : 'Instant Selfie ➔'}
               </span>
             </div>
           </button>
 
-          {/* Card 3: Occasion */}
-          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36">
-            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
-              <Calendar className="w-4 h-4" />
+          {/* Card 3: Occasion -> Links directly to Occasion Collection */}
+          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <button
+                onClick={() => {
+                  const cleaned = selectedOccasion.split('&')[0].trim();
+                  setActiveFilterOccasion(cleaned);
+                  setActiveView('collections');
+                }}
+                title="View in Catalog"
+                className="text-[9px] uppercase tracking-wider text-champagne hover:underline"
+              >
+                View ➔
+              </button>
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">Occasion</span>
+              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">03. Occasion</span>
               <select
                 value={selectedOccasion}
-                onChange={(e) => setSelectedOccasion(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedOccasion(val);
+                  const cleaned = val.split('&')[0].trim();
+                  setActiveFilterOccasion(cleaned);
+                  setActiveView('collections');
+                }}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="Bridal & Barat" className="bg-plum text-ivory">Bridal & Barat</option>
@@ -106,16 +159,41 @@ export const QuickStyleFinder: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 4: Event */}
-          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36">
-            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
-              <Sparkles className="w-4 h-4" />
+          {/* Card 4: Event Type -> Links to Bridal / Event Collection */}
+          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <button
+                onClick={() => {
+                  if (selectedEvent.includes('Bride')) {
+                    setActiveView('bridal');
+                  } else {
+                    setActiveFilterEvent(selectedEvent);
+                    setActiveView('collections');
+                  }
+                }}
+                title="View in Catalog"
+                className="text-[9px] uppercase tracking-wider text-champagne hover:underline"
+              >
+                Explore ➔
+              </button>
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">Event Type</span>
+              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">04. Event Type</span>
               <select
                 value={selectedEvent}
-                onChange={(e) => setSelectedEvent(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedEvent(val);
+                  if (val.includes('Bride')) {
+                    setActiveView('bridal');
+                  } else {
+                    setActiveFilterEvent(val);
+                    setActiveView('collections');
+                  }
+                }}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="Bride (Own Wedding)" className="bg-plum text-ivory">Bride (Own Wedding)</option>
@@ -126,16 +204,29 @@ export const QuickStyleFinder: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 5: Style */}
-          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36">
-            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
-              <Palette className="w-4 h-4" />
+          {/* Card 5: Style Vibe -> Links to 2026 Trends & Runway */}
+          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
+                <Palette className="w-4 h-4" />
+              </div>
+              <button
+                onClick={() => setActiveView('trends')}
+                title="View 2026 Trends"
+                className="text-[9px] uppercase tracking-wider text-champagne hover:underline"
+              >
+                Trends ➔
+              </button>
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">Style Vibe</span>
+              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">05. Style Vibe</span>
               <select
                 value={selectedStyle}
-                onChange={(e) => setSelectedStyle(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedStyle(val);
+                  setActiveView('trends');
+                }}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="Royal Heritage Couture" className="bg-plum text-ivory">Royal Heritage</option>
@@ -146,16 +237,29 @@ export const QuickStyleFinder: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 6: Budget */}
-          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36">
-            <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
-              <DollarSign className="w-4 h-4" />
+          {/* Card 6: Investment / Budget -> Links to Filtered Collections */}
+          <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <button
+                onClick={() => setActiveView('collections')}
+                title="Filter by Budget"
+                className="text-[9px] uppercase tracking-wider text-champagne hover:underline"
+              >
+                Filter ➔
+              </button>
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">Investment</span>
+              <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">06. Investment</span>
               <select
                 value={selectedBudget}
-                onChange={(e) => setSelectedBudget(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedBudget(val);
+                  setActiveView('collections');
+                }}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="PKR 50,000 - 100,000" className="bg-plum text-ivory">50k - 100k PKR</option>
