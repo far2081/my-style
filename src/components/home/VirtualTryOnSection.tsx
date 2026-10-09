@@ -14,7 +14,8 @@ export const VirtualTryOnSection: React.FC = () => {
   const [activeAngle, setActiveAngle] = useState<'front' | 'left' | 'right' | 'back' | '360'>('front');
   const [customerPhoto, setCustomerPhoto] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [tryOnGenerated, setTryOnGenerated] = useState(true);
+  const [tryOnGenerated, setTryOnGenerated] = useState(false);
+  const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(null);
   const [rotationAngle, setRotationAngle] = useState(0);
 
   // Available sample models
@@ -25,9 +26,24 @@ export const VirtualTryOnSection: React.FC = () => {
   ];
 
   const [selectedSample, setSelectedSample] = useState(sampleModels[0].img);
-
   const [tryOnError, setTryOnError] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('completed');
+  const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setCustomerPhoto(reader.result);
+          setSelectedSample('');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -49,11 +65,20 @@ export const VirtualTryOnSection: React.FC = () => {
     } else {
       setJobStatus('completed');
       setTryOnGenerated(true);
+      if (res.result?.renderedImageUrl) {
+        setRenderedResultUrl(res.result.renderedImageUrl);
+      }
     }
   };
 
+  const handleResetResult = () => {
+    setRenderedResultUrl(null);
+    setTryOnGenerated(false);
+    setJobStatus('idle');
+  };
 
   const getDisplayedImage = () => {
+    if (renderedResultUrl && activeAngle === 'front') return renderedResultUrl;
     if (activeAngle === 'back' && currentDress.images.back) return currentDress.images.back;
     if (activeAngle === 'left' && currentDress.images.left) return currentDress.images.left;
     if (activeAngle === 'right' && currentDress.images.right) return currentDress.images.right;
@@ -104,11 +129,15 @@ export const VirtualTryOnSection: React.FC = () => {
                 </span>
 
                 <div className="grid grid-cols-2 gap-2.5 mb-4">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
                   <button
-                    onClick={() => {
-                      setCustomerPhoto(sampleModels[0].img);
-                      setSelectedSample(sampleModels[0].img);
-                    }}
+                    onClick={() => fileInputRef.current?.click()}
                     className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
                   >
                     <Upload className="w-4 h-4 text-champagne" />
@@ -117,8 +146,10 @@ export const VirtualTryOnSection: React.FC = () => {
 
                   <button
                     onClick={() => {
-                      setCustomerPhoto(sampleModels[1].img);
-                      setSelectedSample(sampleModels[1].img);
+                      if (fileInputRef.current) {
+                        fileInputRef.current.setAttribute('capture', 'user');
+                        fileInputRef.current.click();
+                      }
                     }}
                     className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
                   >
@@ -316,7 +347,26 @@ export const VirtualTryOnSection: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {renderedResultUrl && (
+                    <>
+                      <a
+                        href={renderedResultUrl}
+                        download={`StyleMira_TryOn_${currentDress.name.replace(/\s+/g, '_')}.jpg`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/40 font-semibold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg transition-all"
+                      >
+                        Save Photo
+                      </a>
+                      <button
+                        onClick={handleResetResult}
+                        className="bg-plum-dark hover:bg-rose/20 text-rose border border-rose/40 font-semibold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg transition-all"
+                      >
+                        Delete Result
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={() => addToCart(currentDress)}
                     className="bg-champagne hover:bg-champagne-light text-plum font-bold text-xs uppercase tracking-wider px-6 py-2.5 rounded-lg shadow-gold-subtle transition-all"

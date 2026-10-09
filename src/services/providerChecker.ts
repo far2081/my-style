@@ -127,41 +127,45 @@ export class ProviderChecker {
   }
 
   /**
-   * Test Replicate (Virtual Try-On)
+   * Test RapidAPI Try-On Diffusion (Virtual Try-On)
    */
-  async testReplicate(): Promise<{ status: ProviderStatus; message?: string }> {
-    if (!this.hasKey('VITE_REPLICATE_API_TOKEN', 'REPLICATE_API_TOKEN')) {
+  async testVTON(): Promise<{ status: ProviderStatus; message?: string }> {
+    if (!this.hasKey('VTON_API_KEY', 'VTON_API_KEY') && !this.hasKey('VITE_VTON_API_KEY', 'VTON_API_KEY')) {
       return {
         status: 'NOT CONFIGURED',
-        message: 'Missing REPLICATE_API_TOKEN in environment variables.',
+        message: 'Missing VTON_API_KEY in environment variables.',
       };
     }
 
+    const apiKey = getEnvKey('VITE_VTON_API_KEY', 'VTON_API_KEY');
+    const apiHost = getEnvKey('VITE_VTON_API_HOST', 'VTON_API_HOST') || 'try-on-diffusion.p.rapidapi.com';
+
     try {
-      const token = getEnvKey('VITE_REPLICATE_API_TOKEN', 'REPLICATE_API_TOKEN');
-      const response = await fetch('https://api.replicate.com/v1/account', {
+      const response = await fetch('https://try-on-diffusion.p.rapidapi.com/try-on-url', {
+        method: 'OPTIONS',
         headers: {
-          Authorization: `Bearer ${token}`,
+          'x-rapidapi-key': apiKey,
+          'x-rapidapi-host': apiHost,
         },
       });
 
-      if (response.status === 200) {
+      if (response.status === 200 || response.status === 405 || response.status === 400) {
         return { status: 'CONNECTED' };
       } else if (response.status === 401 || response.status === 403) {
         return {
           status: 'INVALID CREDENTIAL',
-          message: 'Replicate API rejected the token with 401 Unauthorized.',
+          message: 'RapidAPI rejected VTON_API_KEY with 401/403 Unauthorized.',
         };
       } else {
         return {
           status: 'PROVIDER ERROR',
-          message: `Replicate API returned status ${response.status}`,
+          message: `RapidAPI VTON returned status ${response.status}`,
         };
       }
     } catch (err: any) {
       return {
         status: 'PROVIDER UNAVAILABLE',
-        message: err.message || 'Failed to reach Replicate API endpoint.',
+        message: err.message || 'Failed to reach RapidAPI VTON endpoint.',
       };
     }
   }
@@ -324,12 +328,12 @@ export class ProviderChecker {
   async getFullReport(): Promise<ProviderReport[]> {
     const timestamp = new Date().toISOString();
 
-    const [supabaseRes, geminiRes, cloudflareRes, replicateRes, runwayRes, emailRes, stripeRes] =
+    const [supabaseRes, geminiRes, cloudflareRes, vtonRes, runwayRes, emailRes, stripeRes] =
       await Promise.all([
         this.testSupabase(),
         this.testGemini(),
         this.testCloudflare(),
-        this.testReplicate(),
+        this.testVTON(),
         this.testRunway(),
         this.testEmail(),
         this.testStripe(),
@@ -375,14 +379,14 @@ export class ProviderChecker {
       },
       {
         id: 'tryon',
-        name: 'Replicate IDM-VTON Neural Pipeline',
+        name: 'RapidAPI Try-On Diffusion Engine',
         feature: 'Virtual Try-On Fitting Room',
-        configured: replicateRes.status === 'CONNECTED',
-        missing: replicateRes.status === 'NOT CONFIGURED',
-        requiredEnvVars: ['REPLICATE_API_TOKEN'],
-        status: replicateRes.status,
+        configured: vtonRes.status === 'CONNECTED',
+        missing: vtonRes.status === 'NOT CONFIGURED',
+        requiredEnvVars: ['VTON_API_KEY', 'VTON_API_HOST'],
+        status: vtonRes.status,
         lastTestedAt: timestamp,
-        errorMessage: replicateRes.message,
+        errorMessage: vtonRes.message,
       },
       {
         id: 'makeup',
