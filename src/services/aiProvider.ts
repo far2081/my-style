@@ -82,17 +82,33 @@ export class GeminiStylistProvider implements AIStylistProvider {
     const prefDressType = (preferences.dressType || '').toLowerCase();
     const prefStyle = (preferences.style || '').toLowerCase();
 
-    // 1. Attempt Real Server-side Gemini API call
+    // 1. Attempt Real Server-side Gemini API call with strict 6-second timeout
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      const leanManifest = activeCatalog.slice(0, 25).map((p) => ({
+        id: p.id,
+        name: p.name,
+        occasion: p.occasion,
+        category: p.category,
+        dressType: p.dressType,
+        color: p.color,
+        fabric: p.fabric,
+        price: p.price,
+      }));
+
       const response = await fetch('/api/gemini-stylist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           preferences,
-          availableProducts: activeCatalog,
-          userPhotoUrl: req.userPhotoUrl,
+          availableProducts: leanManifest,
+          userPhotoUrl: req.userPhotoUrl && !req.userPhotoUrl.startsWith('data:') ? req.userPhotoUrl : undefined,
         }),
       });
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -106,7 +122,7 @@ export class GeminiStylistProvider implements AIStylistProvider {
                 product: found,
                 matchScore: Math.max(88, 98 - idx * 3),
                 reasons: [
-                  data.reasons?.[id] || `Selected by Gemini AI matching your ${preferences.occasion || 'couture'} aesthetic`,
+                  data.reasons?.[id] || `Selected matching your ${preferences.occasion || 'couture'} aesthetic`,
                   `Fabric: Authentic ${found.fabric} with bespoke artisanal finish`,
                 ],
               });
@@ -118,7 +134,7 @@ export class GeminiStylistProvider implements AIStylistProvider {
               primaryRecommendation: matchedProducts[0].product,
               topLooks: matchedProducts,
               paletteConfidence: data.paletteConfidence ? data.paletteConfidence / 100 : 0.98,
-              curatedAdvice: data.curatedAdvice || 'Curated with Gemini 1.5 Flash fashion intelligence.',
+              curatedAdvice: data.curatedAdvice || 'Curated with StyleMira AI fashion intelligence.',
               recommendedSilhouettes: data.recommendedSilhouettes || ['Royal Peshwas', 'Farshi Gharara', 'Kalidaar'],
               undertoneMatch: data.undertoneMatch || 'Champagne Warm / Royal Jewel',
             };
@@ -130,8 +146,8 @@ export class GeminiStylistProvider implements AIStylistProvider {
           console.warn('[Gemini Stylist notice]:', errJson.error);
         }
       }
-    } catch (e) {
-      console.warn('[Gemini Stylist network notice]:', e);
+    } catch (e: any) {
+      console.warn('[Gemini Stylist network/timeout notice]:', e?.message || e);
     }
 
     // 2. Deterministic Algorithmic Catalog Ranking (Guarantees zero fake inventory)

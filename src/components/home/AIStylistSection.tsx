@@ -9,7 +9,9 @@ import { aiProviders } from '../../services/aiProvider';
 export const AIStylistSection: React.FC = () => {
   const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto, activeFilterOccasion, activeFilterEvent, setActiveView } = useApp();
 
-  const [step, setStep] = useState<'input' | 'processing' | 'result'>('input');
+  const [step, setStep] = useState<'input' | 'processing' | 'result' | 'error'>('input');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stylistError, setStylistError] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,15 +89,30 @@ export const AIStylistSection: React.FC = () => {
   };
 
   const handleCreateLook = async () => {
+    if (isSubmitting) return; // Prevent duplicate requests
+    setIsSubmitting(true);
+    setStylistError(null);
     setStep('processing');
-    setAiProviderStatus('Running Gemini 1.5 Flash fashion intelligence & catalog analysis...');
+    setAiProviderStatus('Connecting to AI Fashion Intelligence...');
+
+    // Safety timeout: guarantees UI NEVER stays stuck on loading screen indefinitely
+    const safetyTimer = setTimeout(() => {
+      console.warn('[AIStylist] Safety timeout (9s) triggered. Resuming flow.');
+      setIsSubmitting(false);
+      setStep('result');
+    }, 9000);
 
     try {
       if (customerPhoto) {
         setAiProviderStatus('Analyzing skin undertones & contrast palette via Vision...');
-        await aiProviders.vision.analyzeImage({ imageFileOrUrl: customerPhoto });
+        try {
+          await aiProviders.vision.analyzeImage({ imageFileOrUrl: customerPhoto });
+        } catch {
+          // Non-blocking undertone fallback
+        }
       }
 
+      setAiProviderStatus('Synthesizing bespoke ensembles with Pakistani couture catalog...');
       const stylistRes = await (aiProviders.stylist as any).analyzeAndRecommend(
         {
           preferences: {
@@ -112,15 +129,23 @@ export const AIStylistSection: React.FC = () => {
         products
       );
 
+      clearTimeout(safetyTimer);
+
       if (stylistRes?.primaryRecommendation) {
         setGeminiRecommendedProduct(stylistRes.primaryRecommendation);
       }
-      const topMatch = stylistRes.topLooks[0]?.matchScore || 96;
+      const topMatch = stylistRes?.topLooks?.[0]?.matchScore || 96;
       setMatchPercentage(topMatch);
-      setRecommendationReason(stylistRes.curatedAdvice);
+      setRecommendationReason(stylistRes?.curatedAdvice || '');
       setStep('result');
-    } catch {
+    } catch (err: any) {
+      clearTimeout(safetyTimer);
+      console.error('[AIStylist Error]', err);
+      setStylistError(err?.message || 'AI request timed out or network was interrupted.');
       setStep('result');
+    } finally {
+      clearTimeout(safetyTimer);
+      setIsSubmitting(false);
     }
   };
 
@@ -213,9 +238,76 @@ export const AIStylistSection: React.FC = () => {
             <h3 className="text-2xl font-editorial font-bold text-ivory mb-2">
               Curating Your Bespoke Ensembles...
             </h3>
-            <p className="text-xs text-ivory/60 max-w-sm">
+            <p className="text-xs text-champagne/80 font-mono mb-2">
+              {aiProviderStatus}
+            </p>
+            <p className="text-xs text-ivory/60 max-w-sm mb-6 leading-relaxed">
               Analyzing facial undertone harmony, draping tension, and zardozi threadwork balance for your {selectedOccasion} event.
             </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('result');
+                  setIsSubmitting(false);
+                }}
+                className="text-xs uppercase tracking-wider text-champagne hover:underline px-4 py-2 border border-champagne/30 rounded-lg bg-plum/60 hover:bg-plum transition-colors"
+              >
+                Skip Wait & View Look ➔
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('input');
+                  setIsSubmitting(false);
+                }}
+                className="text-xs uppercase tracking-wider text-ivory/60 hover:text-ivory px-3 py-2 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {step === 'error' && (
+          <div className="bg-plum/90 border border-rose/40 rounded-2xl p-10 max-w-xl mx-auto text-center flex flex-col items-center shadow-luxury">
+            <div className="w-16 h-16 rounded-full bg-rose/20 border border-rose/40 flex items-center justify-center mb-6 text-rose">
+              <X className="w-8 h-8 text-rose" />
+            </div>
+            <span className="text-xs font-brand uppercase tracking-[0.3em] text-rose mb-2">
+              Synthesis Notice
+            </span>
+            <h3 className="text-2xl font-editorial font-bold text-ivory mb-2">
+              AI Generation Encountered An Interruption
+            </h3>
+            <p className="text-xs text-ivory/70 max-w-sm mb-6 leading-relaxed">
+              {stylistError || 'The network request timed out or the AI service took longer than expected to respond.'}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
+              <button
+                type="button"
+                onClick={handleCreateLook}
+                className="w-full sm:w-auto bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-xl shadow-gold-subtle hover:scale-105 transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4 text-plum" />
+                <span>Retry Neural Synthesis</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep('result')}
+                className="w-full sm:w-auto bg-plum border border-champagne/30 hover:border-champagne text-champagne font-semibold text-xs uppercase tracking-widest px-6 py-3 rounded-xl transition-all"
+              >
+                View Curated Catalog Look
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep('input')}
+                className="w-full sm:w-auto text-xs uppercase tracking-wider text-ivory/60 hover:text-ivory px-4 py-2"
+              >
+                Adjust Parameters
+              </button>
+            </div>
           </div>
         )}
 
@@ -599,11 +691,14 @@ export const AIStylistSection: React.FC = () => {
               </button>
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={handleCreateLook}
-                className="w-full sm:w-auto bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-[0.25em] px-12 py-4 rounded-xl shadow-gold-glow hover:scale-105 transition-all flex items-center justify-center gap-3"
+                className={`w-full sm:w-auto bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-[0.25em] px-12 py-4 rounded-xl shadow-gold-glow hover:scale-105 transition-all flex items-center justify-center gap-3 ${
+                  isSubmitting ? 'opacity-60 cursor-not-allowed scale-100' : ''
+                }`}
               >
-                <Wand2 className="w-4 h-4 text-plum" />
-                <span>CREATE MY LOOK</span>
+                <Wand2 className={`w-4 h-4 text-plum ${isSubmitting ? 'animate-spin' : ''}`} />
+                <span>{isSubmitting ? 'SYNTHESIZING LOOK...' : 'CREATE MY LOOK'}</span>
               </button>
             </div>
           </div>
