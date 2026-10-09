@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from '../common/ImageWithFallback';
@@ -10,14 +10,24 @@ import { aiProviders } from '../../services/aiProvider';
 type GarmentViewAngle = 'front' | 'left' | 'right' | 'back';
 
 export const VirtualTryOnSection: React.FC = () => {
-  const { tryOnProduct, setTryOnProduct, addToCart, products, customerPhoto, setCustomerPhoto } = useApp();
+  const {
+    tryOnProduct,
+    setTryOnProduct,
+    addToCart,
+    products,
+    customerPhoto,
+    setCustomerPhoto,
+    personalizedTryOnUrl,
+    setPersonalizedTryOnUrl,
+    setPersonalizedTryOnProductId,
+  } = useApp();
 
   const currentDress = tryOnProduct || products[0] || PRODUCTS_DATA[0];
 
   const [activeView, setActiveView] = useState<GarmentViewAngle>('front');
   const [isGenerating, setIsGenerating] = useState(false);
   const [tryOnGenerated, setTryOnGenerated] = useState(false);
-  const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(null);
+  const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(personalizedTryOnUrl || null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   // Available sample models
@@ -42,6 +52,8 @@ export const VirtualTryOnSection: React.FC = () => {
           setCustomerPhoto(reader.result);
           setSelectedSample('');
           setRenderedResultUrl(null);
+          setPersonalizedTryOnUrl(null);
+          setPersonalizedTryOnProductId(null);
           setTryOnGenerated(false);
         }
       };
@@ -53,6 +65,8 @@ export const VirtualTryOnSection: React.FC = () => {
     setCustomerPhoto(photoDataUrl);
     setSelectedSample('');
     setRenderedResultUrl(null);
+    setPersonalizedTryOnUrl(null);
+    setPersonalizedTryOnProductId(null);
     setTryOnGenerated(false);
   };
 
@@ -60,28 +74,39 @@ export const VirtualTryOnSection: React.FC = () => {
     setCustomerPhoto(null);
     setSelectedSample(sampleModels[0].img);
     setRenderedResultUrl(null);
+    setPersonalizedTryOnUrl(null);
+    setPersonalizedTryOnProductId(null);
     setTryOnGenerated(false);
   };
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
 
-  const viewOrder: GarmentViewAngle[] = ['front', 'left', 'back', 'right'];
+  // Available genuine views for the catalog dress (distinct authentic photos)
+  const genuineViews = useMemo(() => {
+    const list: Array<{ id: GarmentViewAngle; label: string; url: string }> = [
+      { id: 'front', label: 'Front View', url: currentDress.images.front },
+    ];
+    if (currentDress.images.left && currentDress.images.left !== currentDress.images.front) {
+      list.push({ id: 'left', label: 'Left Profile', url: currentDress.images.left });
+    }
+    if (currentDress.images.right && currentDress.images.right !== currentDress.images.front) {
+      list.push({ id: 'right', label: 'Right Profile', url: currentDress.images.right });
+    }
+    if (currentDress.images.back && currentDress.images.back !== currentDress.images.front) {
+      list.push({ id: 'back', label: 'Back View', url: currentDress.images.back });
+    }
+    return list;
+  }, [currentDress]);
 
   // Preload genuine garment angles for smooth switching
   useEffect(() => {
-    const urlsToPreload = [
-      currentDress.images.front,
-      currentDress.images.left,
-      currentDress.images.right,
-      currentDress.images.back,
-    ].filter(Boolean) as string[];
-
+    const urlsToPreload = genuineViews.map((v) => v.url);
     urlsToPreload.forEach((url) => {
       const img = new Image();
       img.src = url;
     });
-  }, [currentDress]);
+  }, [genuineViews]);
 
   // When dress changes or new result is generated, ensure activeView starts at front
   useEffect(() => {
@@ -109,63 +134,61 @@ export const VirtualTryOnSection: React.FC = () => {
       setJobStatus('completed');
       setTryOnGenerated(true);
       setRenderedResultUrl(res.result.renderedImageUrl);
+      setPersonalizedTryOnUrl(res.result.renderedImageUrl);
+      setPersonalizedTryOnProductId(currentDress.id);
       setActiveView('front');
     }
   };
 
   const handleResetResult = () => {
     setRenderedResultUrl(null);
+    setPersonalizedTryOnUrl(null);
+    setPersonalizedTryOnProductId(null);
     setTryOnGenerated(false);
     setJobStatus('idle');
     setActiveView('front');
   };
 
   // Resolve genuine image for current view
+  // NEVER substitute static catalog model images for customer's try-on views
   const getDisplayedImage = () => {
-    if (renderedResultUrl && activeView === 'front') {
+    if (renderedResultUrl) {
       return renderedResultUrl;
     }
-    if (activeView === 'left') {
-      return currentDress.images.left || currentDress.images.front;
-    }
-    if (activeView === 'right') {
-      return currentDress.images.right || currentDress.images.front;
-    }
-    if (activeView === 'back') {
-      return currentDress.images.back || currentDress.images.front;
-    }
-    return currentDress.images.front;
+    const found = genuineViews.find((v) => v.id === activeView);
+    return found ? found.url : currentDress.images.front;
   };
 
-  // View navigation helpers
+  // View navigation helpers for catalog views
+  const currentViewIndex = genuineViews.findIndex((v) => v.id === activeView);
+
   const handleNextView = () => {
-    const currentIndex = viewOrder.indexOf(activeView);
-    const nextIndex = (currentIndex + 1) % viewOrder.length;
-    setActiveView(viewOrder[nextIndex]);
+    if (renderedResultUrl || genuineViews.length <= 1) return;
+    const nextIndex = (currentViewIndex + 1) % genuineViews.length;
+    setActiveView(genuineViews[nextIndex].id);
   };
 
   const handlePrevView = () => {
-    const currentIndex = viewOrder.indexOf(activeView);
-    const prevIndex = (currentIndex - 1 + viewOrder.length) % viewOrder.length;
-    setActiveView(viewOrder[prevIndex]);
+    if (renderedResultUrl || genuineViews.length <= 1) return;
+    const prevIndex = (currentViewIndex - 1 + genuineViews.length) % genuineViews.length;
+    setActiveView(genuineViews[prevIndex].id);
   };
 
-  // Drag / Swipe handlers for realistic multi-view rotation
+  // Drag / Swipe handlers for genuine views
   const handlePointerDown = (clientX: number) => {
+    if (renderedResultUrl || genuineViews.length <= 1) return;
     setIsDragging(true);
     setDragStartX(clientX);
   };
 
   const handlePointerUp = (clientX: number) => {
-    if (!isDragging) return;
+    if (!isDragging || renderedResultUrl || genuineViews.length <= 1) return;
     setIsDragging(false);
     const diff = clientX - dragStartX;
-    const threshold = 40; // min px drag to trigger view change
+    const threshold = 40;
     if (diff < -threshold) {
-      // Swiped left -> advance view
       handleNextView();
     } else if (diff > threshold) {
-      // Swiped right -> previous view
       handlePrevView();
     }
   };
@@ -195,7 +218,7 @@ export const VirtualTryOnSection: React.FC = () => {
           </h2>
           <div className="w-20 h-[2px] bg-gradient-to-r from-transparent via-champagne to-transparent mx-auto mb-6" />
           <p className="text-sm sm:text-base text-ivory/70 max-w-2xl mx-auto leading-relaxed font-light">
-            Upload your portrait, select from our heirloom Pakistani couture library, and witness precision photorealistic drape synthesis across multi-angle perspectives.
+            Upload your portrait, select from our heirloom Pakistani couture library, and witness precision photorealistic drape synthesis.
           </p>
         </div>
 
@@ -252,71 +275,86 @@ export const VirtualTryOnSection: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setIsCameraOpen(true)}
-                        className="flex-1 bg-burgundy/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors"
+                        className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors"
+                        title="Retake with Camera"
                       >
-                        Retake Camera
+                        <Camera className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2.5 mb-4">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
-                    >
-                      <Upload className="w-4 h-4 text-champagne" />
-                      <span className="text-[10px] uppercase font-semibold">Upload Photo</span>
-                    </button>
+                  <>
+                    {/* Upload / Camera CTAs */}
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs transition-colors"
+                      >
+                        <Upload className="w-4 h-4" />
+                        <span className="font-semibold text-[11px]">Upload Photo</span>
+                      </button>
+                      <button
+                        onClick={() => setIsCameraOpen(true)}
+                        className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs transition-colors"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span className="font-semibold text-[11px]">Take Photo</span>
+                      </button>
+                    </div>
 
-                    <button
-                      onClick={() => setIsCameraOpen(true)}
-                      className="bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
-                    >
-                      <Camera className="w-4 h-4 text-champagne" />
-                      <span className="text-[10px] uppercase font-semibold">Take Photo</span>
-                    </button>
-                  </div>
+                    {/* Or Choose Calibrated Avatar */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] text-ivory/60 uppercase tracking-wider block">
+                        Or select calibrated atelier avatar:
+                      </span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {sampleModels.map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => {
+                              setSelectedSample(m.img);
+                              setCustomerPhoto(null);
+                              setRenderedResultUrl(null);
+                              setPersonalizedTryOnUrl(null);
+                              setPersonalizedTryOnProductId(null);
+                              setTryOnGenerated(false);
+                            }}
+                            className={`relative rounded-lg overflow-hidden border p-0.5 text-left transition-all ${
+                              selectedSample === m.img && !customerPhoto
+                                ? 'border-champagne ring-2 ring-champagne/50'
+                                : 'border-champagne/20 opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={m.img} alt={m.name} className="w-full aspect-square object-cover rounded" />
+                            <span className="text-[9px] block text-center truncate py-1 text-ivory/90">
+                              {m.name.split(' ')[0]}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
 
-                {/* Sample Avatars */}
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-ivory/50 block mb-2">
-                    Or select pre-calibrated avatar:
-                  </span>
-                  <div className="flex gap-2">
-                    {sampleModels.map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedSample(m.img);
-                          setCustomerPhoto(null);
-                        }}
-                        className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-transform ${
-                          !customerPhoto && selectedSample === m.img
-                            ? 'border-champagne scale-105 shadow-gold-subtle'
-                            : 'border-transparent opacity-70 hover:opacity-100'
-                        }`}
-                        title={m.name}
-                      >
-                        <img src={m.img} alt={m.name} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
               </div>
 
-              {/* Dress Selector */}
+              {/* Step 2: Selected Dress Selector */}
               <div className="bg-plum/70 border border-champagne/20 rounded-xl p-5">
-                <span className="text-[11px] font-brand uppercase tracking-wider text-champagne block mb-3 font-bold">
-                  Step 2: Choose Dress
-                </span>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-brand uppercase tracking-wider text-champagne font-bold">
+                    Step 2: Selected Dress
+                  </span>
+                  <span className="text-[10px] text-ivory/50">
+                    {products.length} in catalog
+                  </span>
+                </div>
 
                 <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {products.map((prod) => (
@@ -325,6 +363,8 @@ export const VirtualTryOnSection: React.FC = () => {
                       onClick={() => {
                         setTryOnProduct(prod);
                         setRenderedResultUrl(null);
+                        setPersonalizedTryOnUrl(null);
+                        setPersonalizedTryOnProductId(null);
                         setTryOnGenerated(false);
                       }}
                       className={`w-full flex items-center gap-3 p-2 rounded-lg border text-left transition-all ${
@@ -372,53 +412,82 @@ export const VirtualTryOnSection: React.FC = () => {
 
             {/* Right Interactive Try-On Viewer (8 cols) */}
             <div className="lg:col-span-8 space-y-4">
-              {/* Real Multi-View Perspective Tabs */}
-              {/* Specification: Genuine Front, Left Profile, Right Profile, Back Silhouette */}
-              <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  {(['front', 'left', 'right', 'back'] as const).map((angle) => {
-                    const isTryOnFront = renderedResultUrl && angle === 'front';
-                    return (
-                      <button
-                        key={angle}
-                        onClick={() => setActiveView(angle)}
-                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-                          activeView === angle
-                            ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-gold-subtle'
-                            : 'text-ivory/70 hover:text-champagne hover:bg-plum-dark/60'
-                        }`}
-                      >
-                        {isTryOnFront && <Sparkles className="w-3 h-3 text-champagne" />}
-                        {isTryOnFront ? 'Your Try-On (Front)' : `${angle} View`}
-                      </button>
-                    );
-                  })}
-                </div>
+              {renderedResultUrl ? (
+                /* Mode 1: Personalized Try-On Result Active (Strictly 1 genuine frontal image) */
+                <div className="space-y-3">
+                  <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-burgundy text-champagne font-bold border border-champagne/40 px-3 py-1.5 rounded-lg text-xs font-brand uppercase tracking-wider flex items-center gap-1.5 shadow-gold-subtle">
+                        <Sparkles className="w-3.5 h-3.5 text-champagne" />
+                        <span>Your Try-On (Front View)</span>
+                      </span>
+                    </div>
 
-                <div className="hidden sm:flex items-center gap-1 text-[11px] text-ivory/50 font-brand">
-                  <MoveHorizontal className="w-3.5 h-3.5 text-champagne/70" />
-                  <span>Drag photo to rotate</span>
-                </div>
-              </div>
-
-              {/* Informative Banner when Virtual Try-On 2D Result is Displayed */}
-              {renderedResultUrl && (
-                <div className="bg-plum/90 border border-champagne/30 rounded-xl p-3 flex items-start gap-3 text-xs shadow-md">
-                  <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
-                  <div className="space-y-0.5">
-                    <p className="text-champagne font-semibold text-[11px]">
-                      Your Virtual Try-On result is available in front view. Additional views require multi-view generation.
-                    </p>
-                    <p className="text-ivory/60 text-[10px]">
-                      Switch tabs or drag left/right to inspect genuine garment couture details (Left Profile, Right Profile, Back View) from our atelier photography.
-                    </p>
+                    <button
+                      onClick={handleResetResult}
+                      className="text-xs text-champagne hover:text-champagne-light bg-plum-dark/60 border border-champagne/20 px-3 py-1.5 rounded-lg transition-colors font-brand uppercase tracking-wider"
+                    >
+                      View Catalog Garment
+                    </button>
                   </div>
+
+                  {/* Explicit Mandatory Notice: Additional views are not available yet */}
+                  <div className="bg-plum-dark/95 border border-champagne/30 rounded-xl p-3.5 flex items-start gap-3 text-xs shadow-md">
+                    <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-champagne font-semibold text-xs font-brand">
+                        Additional views are not available yet.
+                      </p>
+                      <p className="text-ivory/70 text-[11px] leading-relaxed font-light">
+                        The neural draping engine has generated an authentic frontal view of your portrait wearing {currentDress.name}. Side, back, and 360° views of your personalized try-on are not supported by the provider.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Mode 2: Catalog Multi-View Studio (Genuine photos only, NO CSS rotateY page flip) */
+                <div className="space-y-3">
+                  <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      {genuineViews.map((view) => (
+                        <button
+                          key={view.id}
+                          onClick={() => setActiveView(view.id)}
+                          className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                            activeView === view.id
+                              ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-gold-subtle'
+                              : 'text-ivory/70 hover:text-champagne hover:bg-plum-dark/60'
+                          }`}
+                        >
+                          {view.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {genuineViews.length > 1 && (
+                      <div className="hidden sm:flex items-center gap-1 text-[11px] text-ivory/50 font-brand">
+                        <MoveHorizontal className="w-3.5 h-3.5 text-champagne/70" />
+                        <span>Drag photo to change view</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {genuineViews.length <= 1 && (
+                    <div className="bg-plum/70 border border-champagne/20 rounded-xl px-3.5 py-2 flex items-center justify-center gap-2 text-xs text-center">
+                      <Info className="w-3.5 h-3.5 text-champagne/80 flex-shrink-0" />
+                      <span className="text-ivory/70 text-[11px]">
+                        Additional views are not available yet for this catalog garment.
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Main Visual Display Stage */}
               <div
-                className="relative aspect-[3/4] sm:aspect-[4/3] rounded-2xl overflow-hidden bg-charcoal-dark border border-champagne/30 shadow-2xl flex items-center justify-center select-none cursor-grab active:cursor-grabbing"
+                className={`relative aspect-[3/4] sm:aspect-[4/3] rounded-2xl overflow-hidden bg-charcoal-dark border border-champagne/30 shadow-2xl flex items-center justify-center select-none ${
+                  !renderedResultUrl && genuineViews.length > 1 ? 'cursor-grab active:cursor-grabbing' : ''
+                }`}
                 onMouseDown={(e) => handlePointerDown(e.clientX)}
                 onMouseUp={(e) => handlePointerUp(e.clientX)}
                 onTouchStart={(e) => handlePointerDown(e.touches[0].clientX)}
@@ -446,7 +515,7 @@ export const VirtualTryOnSection: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Realistic Garment Multi-View Stage - NO CSS rotateY card flip */}
+                    {/* Clean Image Stage - ZERO CSS rotateY card-flip or transform */}
                     <div className="w-full h-full flex items-center justify-center overflow-hidden">
                       <ImageWithFallback
                         src={getDisplayedImage()}
@@ -458,7 +527,7 @@ export const VirtualTryOnSection: React.FC = () => {
 
                     {/* Watermark / Brand Badge */}
                     <div className="absolute top-4 left-4 bg-plum-dark/90 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2 z-10 shadow-luxury">
-                      {renderedResultUrl && activeView === 'front' ? (
+                      {renderedResultUrl ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-champagne" />
                           <span className="text-[10px] font-brand tracking-wider uppercase text-champagne font-bold">
@@ -477,56 +546,58 @@ export const VirtualTryOnSection: React.FC = () => {
 
                     {/* View Angle Pill */}
                     <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10 shadow-luxury">
-                      {renderedResultUrl && activeView === 'front'
-                        ? '2D Neural Try-On Result ✓'
-                        : `${activeView.toUpperCase()} VIEW`}
+                      {renderedResultUrl ? '2D Neural Try-On Result ✓' : `${activeView.toUpperCase()} VIEW`}
                     </div>
 
-                    {/* Horizontal View Quick Steppers (Left/Right Arrows) */}
-                    <div className="absolute inset-y-0 inset-x-2 flex items-center justify-between pointer-events-none z-10">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePrevView();
-                        }}
-                        className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
-                        title="Previous garment view"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNextView();
-                        }}
-                        className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
-                        title="Next garment view"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Bottom Indicator Dots */}
-                    <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-2 z-10 pointer-events-none">
-                      {viewOrder.map((v) => (
+                    {/* Quick Steppers (Left/Right Arrows) only when multiple genuine views exist for catalog garment */}
+                    {!renderedResultUrl && genuineViews.length > 1 && (
+                      <div className="absolute inset-y-0 inset-x-2 flex items-center justify-between pointer-events-none z-10">
                         <button
-                          key={v}
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setActiveView(v);
+                            handlePrevView();
                           }}
-                          className={`pointer-events-auto transition-all rounded-full ${
-                            activeView === v
-                              ? 'w-6 h-2 bg-champagne'
-                              : 'w-2 h-2 bg-ivory/40 hover:bg-ivory/80'
-                          }`}
-                          title={`Switch to ${v} view`}
-                        />
-                      ))}
-                    </div>
+                          className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
+                          title="Previous garment view"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNextView();
+                          }}
+                          className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
+                          title="Next garment view"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Bottom Indicator Dots only for catalog garments with multiple views */}
+                    {!renderedResultUrl && genuineViews.length > 1 && (
+                      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-2 z-10 pointer-events-none">
+                        {genuineViews.map((v) => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveView(v.id);
+                            }}
+                            className={`pointer-events-auto transition-all rounded-full ${
+                              activeView === v.id
+                                ? 'w-6 h-2 bg-champagne'
+                                : 'w-2 h-2 bg-ivory/40 hover:bg-ivory/80'
+                            }`}
+                            title={`Switch to ${v.label}`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
