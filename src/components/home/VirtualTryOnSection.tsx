@@ -792,6 +792,20 @@ export const VirtualTryOnSection: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-3">
                   {renderedResultUrl && (
                     <>
+                      <button
+                        onClick={() => {
+                          const runwayEl = document.getElementById('runway');
+                          if (runwayEl) {
+                            runwayEl.scrollIntoView({ behavior: 'smooth' });
+                          } else {
+                            setActiveView('runway' as any);
+                          }
+                        }}
+                        className="bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg shadow-gold-glow flex items-center gap-1.5 transition-all hover:scale-105"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-plum" />
+                        <span>Walk on 3D Runway</span>
+                      </button>
                       <a
                         href={renderedResultUrl}
                         download={`StyleMira_TryOn_${currentDress.name.replace(/\s+/g, '_')}.jpg`}
