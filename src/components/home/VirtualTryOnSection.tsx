@@ -17,6 +17,10 @@ export const VirtualTryOnSection: React.FC = () => {
     products,
     customerPhoto,
     setCustomerPhoto,
+    customerBodyPhoto,
+    setCustomerBodyPhoto,
+    customerBodyStructure,
+    setCustomerBodyStructure,
     personalizedTryOnUrl,
     setPersonalizedTryOnUrl,
     personalizedTryOnProductId,
@@ -27,6 +31,7 @@ export const VirtualTryOnSection: React.FC = () => {
   const currentDress = tryOnProduct || products[0] || PRODUCTS_DATA[0];
 
   const [activeView, setActiveView] = useState<GarmentViewAngle>('front');
+  const [photoType, setPhotoType] = useState<'portrait' | 'fullbody' | 'unknown'>('unknown');
   const [isGenerating, setIsGenerating] = useState(false);
   const [tryOnGenerated, setTryOnGenerated] = useState(false);
   const [renderedResultUrl, setRenderedResultUrl] = useState<string | null>(
@@ -164,6 +169,22 @@ export const VirtualTryOnSection: React.FC = () => {
   const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bodyFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to detect whether image is a portrait/bust photo or full-body photo
+  const detectPhotoFraming = (dataUrl: string) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.naturalHeight / img.naturalWidth;
+      // Full-body photos typically have height/width >= 1.35
+      if (ratio >= 1.35) {
+        setPhotoType('fullbody');
+      } else {
+        setPhotoType('portrait');
+      }
+    };
+    img.src = dataUrl;
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,8 +192,27 @@ export const VirtualTryOnSection: React.FC = () => {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
-          setCustomerPhoto(reader.result);
+          const res = reader.result;
+          setCustomerPhoto(res);
+          detectPhotoFraming(res);
           setSelectedSample('');
+          setRenderedResultUrl(null);
+          setPersonalizedTryOnUrl(null);
+          setPersonalizedTryOnProductId(null);
+          setTryOnGenerated(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleBodyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setCustomerBodyPhoto(reader.result);
           setRenderedResultUrl(null);
           setPersonalizedTryOnUrl(null);
           setPersonalizedTryOnProductId(null);
@@ -185,6 +225,7 @@ export const VirtualTryOnSection: React.FC = () => {
 
   const handleCameraCapture = (photoDataUrl: string) => {
     setCustomerPhoto(photoDataUrl);
+    detectPhotoFraming(photoDataUrl);
     setSelectedSample('');
     setRenderedResultUrl(null);
     setPersonalizedTryOnUrl(null);
@@ -194,6 +235,8 @@ export const VirtualTryOnSection: React.FC = () => {
 
   const handleClearPhoto = () => {
     setCustomerPhoto(null);
+    setCustomerBodyPhoto(null);
+    setPhotoType('unknown');
     setSelectedSample(sampleModels[0].img);
     setRenderedResultUrl(null);
     setPersonalizedTryOnUrl(null);
@@ -249,6 +292,9 @@ export const VirtualTryOnSection: React.FC = () => {
 
     const res = await aiProviders.tryon.generateTryOn({
       customerPhotoUrl: photoToUse,
+      customerFaceUrl: customerPhoto || undefined,
+      customerBodyUrl: customerBodyPhoto || (photoType === 'fullbody' ? photoToUse : undefined),
+      bodyStructure: customerBodyStructure,
       garmentImageUrl: currentDress.images.front,
       productId: currentDress.id,
       perspectiveAngle: 'Front',
@@ -385,30 +431,65 @@ export const VirtualTryOnSection: React.FC = () => {
 
                 {/* If Customer Uploaded Photo, show Preview Card */}
                 {customerPhoto ? (
-                  <div className="relative mb-4 rounded-xl overflow-hidden aspect-[4/3] border border-champagne/40 bg-charcoal">
-                    <img
-                      src={customerPhoto}
-                      alt="Your Uploaded Portrait"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-2 left-2 bg-plum-dark/90 px-2.5 py-0.5 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne">
-                      Your Portrait Active ✓
+                  <div className="space-y-3 mb-4">
+                    <div className="relative rounded-xl overflow-hidden aspect-[4/3] border border-champagne/40 bg-charcoal">
+                      <img
+                        src={customerPhoto}
+                        alt="Your Uploaded Portrait"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-2 left-2 bg-plum-dark/90 px-2.5 py-0.5 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1">
+                        <span>{photoType === 'fullbody' ? 'Full-Body Portrait Detected ✓' : 'Face / Bust Portrait ✓'}</span>
+                      </div>
+                      <div className="absolute bottom-2 inset-x-2 flex gap-2">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1 bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors"
+                        >
+                          Change Photo
+                        </button>
+                        <button
+                          onClick={() => setIsCameraOpen(true)}
+                          className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors"
+                          title="Retake with Camera"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="absolute bottom-2 inset-x-2 flex gap-2">
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors"
-                      >
-                        Change Photo
-                      </button>
-                      <button
-                        onClick={() => setIsCameraOpen(true)}
-                        className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors"
-                        title="Retake with Camera"
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+
+                    {/* Educational Guidance Notice when Portrait/Bust is uploaded */}
+                    {photoType === 'portrait' && (
+                      <div className="bg-plum-dark/90 border border-champagne/25 rounded-xl p-3 text-[11px] text-ivory/80 space-y-2 font-light">
+                        <div className="flex items-start gap-2">
+                          <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
+                          <p className="leading-snug">
+                            <strong className="text-champagne font-normal">Tip for Full-Body Fitting:</strong> A portrait photo will drape the upper bodice. For a complete head-to-toe lehenga fit with full skirt flare, you can optionally attach a full-body reference photo below!
+                          </p>
+                        </div>
+
+                        {/* Separate Full-Body Reference Photo Upload */}
+                        {customerBodyPhoto ? (
+                          <div className="flex items-center justify-between bg-plum/60 p-2 rounded-lg border border-champagne/20 text-[10px]">
+                            <span className="text-champagne truncate">Full-Body Reference Attached ✓</span>
+                            <button
+                              onClick={() => setCustomerBodyPhoto(null)}
+                              className="text-rose hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => bodyFileInputRef.current?.click()}
+                            className="w-full bg-burgundy/60 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <Upload className="w-3 h-3 text-champagne" />
+                            <span>Add Full-Body Reference Photo</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -442,6 +523,8 @@ export const VirtualTryOnSection: React.FC = () => {
                             onClick={() => {
                               setSelectedSample(m.img);
                               setCustomerPhoto(null);
+                              setCustomerBodyPhoto(null);
+                              setPhotoType('unknown');
                               setRenderedResultUrl(null);
                               setPersonalizedTryOnUrl(null);
                               setPersonalizedTryOnProductId(null);
@@ -464,12 +547,42 @@ export const VirtualTryOnSection: React.FC = () => {
                   </>
                 )}
 
+                {/* Body Structure Selection for Accurate Runway & Fitting */}
+                <div className="mt-4 pt-3 border-t border-champagne/15">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-brand uppercase tracking-wider text-ivory/70">
+                      Silhouette & Body Structure:
+                    </span>
+                    <span className="text-[10px] text-champagne font-brand font-semibold">
+                      {customerBodyStructure.split(' ')[0]}
+                    </span>
+                  </div>
+                  <select
+                    value={customerBodyStructure}
+                    onChange={(e) => setCustomerBodyStructure(e.target.value)}
+                    className="w-full bg-plum-dark/90 border border-champagne/30 text-champagne text-xs font-brand rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-champagne"
+                  >
+                    <option value="Hourglass / Curated">Hourglass / Curated</option>
+                    <option value="Pear / Flared Hem">Pear / Flared Hem</option>
+                    <option value="Petite / Balanced">Petite / Balanced</option>
+                    <option value="Athletic / Straight">Athletic / Straight</option>
+                    <option value="Plus Size / Royal Flare">Plus Size / Royal Flare</option>
+                  </select>
+                </div>
+
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   onChange={handleFileUpload}
+                />
+                <input
+                  ref={bodyFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleBodyFileUpload}
                 />
               </div>
 
@@ -660,9 +773,9 @@ export const VirtualTryOnSection: React.FC = () => {
                 </div>
               )}
 
-              {/* Main Visual Display Stage - GUARANTEED SAME DRESS ACROSS ALL ANGLES */}
+              {/* Main Visual Display Stage - Full head-to-toe outfit and face preservation */}
               <div
-                className={`relative aspect-[3/4] sm:aspect-[4/3] rounded-2xl overflow-hidden bg-charcoal-dark border border-champagne/30 shadow-2xl flex items-center justify-center select-none ${
+                className={`relative aspect-[3/4] rounded-2xl overflow-hidden bg-charcoal-dark border border-champagne/30 shadow-2xl flex items-center justify-center select-none ${
                   !renderedResultUrl ? 'cursor-grab active:cursor-grabbing' : ''
                 }`}
                 onMouseDown={(e) => handlePointerDown(e.clientX)}
@@ -692,13 +805,12 @@ export const VirtualTryOnSection: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Clean Image Stage - ZERO CSS rotateY card-flip or transform */}
-                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                      <ImageWithFallback
+                    {/* Clean Image Stage - ZERO CSS rotateY card-flip or transform, object-contain preserves entire body and face */}
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden bg-black/60">
+                      <img
                         src={getDisplayedImage()}
                         alt={`${currentDress.name} - ${activeView} view`}
-                        aspectRatio="aspect-full"
-                        className="w-full h-full object-cover transition-opacity duration-300 pointer-events-none"
+                        className="w-full h-full object-contain transition-opacity duration-300 pointer-events-none"
                       />
                     </div>
 

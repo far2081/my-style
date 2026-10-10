@@ -265,6 +265,9 @@ export class GeminiVisionAnalysisProvider implements ImageAnalysisProvider {
 
 export interface TryOnRequest {
   customerPhotoUrl: string;
+  customerFaceUrl?: string;
+  customerBodyUrl?: string;
+  bodyStructure?: string;
   garmentImageUrl: string;
   productId: string;
   perspectiveAngle?: 'Front' | 'Side' | 'Back';
@@ -317,6 +320,9 @@ export class ReplicateVTONProvider implements TryOnProvider {
         },
         body: JSON.stringify({
           avatar_image_url: req.customerPhotoUrl,
+          face_image_url: req.customerFaceUrl,
+          body_image_url: req.customerBodyUrl,
+          body_structure: req.bodyStructure,
           clothing_image_url: req.garmentImageUrl,
           productId: req.productId,
         }),

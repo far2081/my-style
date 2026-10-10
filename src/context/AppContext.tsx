@@ -80,6 +80,10 @@ interface AppContextType {
   setActiveFilterEvent: (event: string | null) => void;
   customerPhoto: string | null;
   setCustomerPhoto: (photo: string | null) => void;
+  customerBodyPhoto: string | null;
+  setCustomerBodyPhoto: (photo: string | null) => void;
+  customerBodyStructure: string;
+  setCustomerBodyStructure: (structure: string) => void;
   personalizedTryOnUrl: string | null;
   setPersonalizedTryOnUrl: (url: string | null) => void;
   personalizedTryOnProductId: string | null;
@@ -245,6 +249,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeFilterOccasion, setActiveFilterOccasion] = useState<string | null>(null);
   const [activeFilterEvent, setActiveFilterEvent] = useState<string | null>(null);
   const [customerPhoto, setCustomerPhoto] = useState<string | null>(null);
+  const [customerBodyPhoto, setCustomerBodyPhoto] = useState<string | null>(null);
+  const [customerBodyStructure, setCustomerBodyStructure] = useState<string>('Hourglass / Curated');
   const [personalizedTryOnUrl, setPersonalizedTryOnUrl] = useState<string | null>(null);
   const [personalizedTryOnProductId, setPersonalizedTryOnProductId] = useState<string | null>(null);
 
@@ -647,6 +653,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveFilterEvent,
         customerPhoto,
         setCustomerPhoto,
+        customerBodyPhoto,
+        setCustomerBodyPhoto,
+        customerBodyStructure,
+        setCustomerBodyStructure,
         personalizedTryOnUrl,
         setPersonalizedTryOnUrl,
         personalizedTryOnProductId,

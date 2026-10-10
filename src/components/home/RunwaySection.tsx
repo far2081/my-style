@@ -22,7 +22,14 @@ import {
 } from 'lucide-react';
 
 export const RunwaySection: React.FC = () => {
-  const { setSelectedProduct, customerPhoto, personalizedTryOnUrl, tryOnProduct } = useApp();
+  const {
+    setSelectedProduct,
+    customerPhoto,
+    customerBodyPhoto,
+    customerBodyStructure,
+    personalizedTryOnUrl,
+    tryOnProduct,
+  } = useApp();
 
   const [isPlaying, setIsPlaying] = useState(true);
   const [activeAngle, setActiveAngle] = useState<'Front' | 'Left' | 'Right' | 'Back'>('Front');
@@ -30,6 +37,17 @@ export const RunwaySection: React.FC = () => {
   const [outfitIndex, setOutfitIndex] = useState(0);
   const [walkSpeed, setWalkSpeed] = useState<number>(1.0);
   const [showTechInfo, setShowTechInfo] = useState(false);
+
+  const isPlayingRef = useRef(isPlaying);
+  const walkSpeedRef = useRef(walkSpeed);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    walkSpeedRef.current = walkSpeed;
+  }, [walkSpeed]);
 
   // If a dress was selected in try-on, match it as initial outfit
   useEffect(() => {
@@ -407,8 +425,8 @@ export const RunwaySection: React.FC = () => {
       const delta = clock.getDelta();
       controls.update();
 
-      if (isPlaying && rigRef.current && avatarGroupRef.current) {
-        walkPhase += delta * 4.2 * walkSpeed;
+      if (isPlayingRef.current && rigRef.current && avatarGroupRef.current) {
+        walkPhase += delta * 4.2 * walkSpeedRef.current;
 
         // Oscillating natural runway gait
         const hipSway = Math.sin(walkPhase) * 0.08;
@@ -434,7 +452,7 @@ export const RunwaySection: React.FC = () => {
         rigRef.current.dupatta.rotation.x = Math.cos(walkPhase) * 0.12;
 
         // Runway stride progression along catwalk
-        runwayProgress += delta * 0.55 * walkSpeed;
+        runwayProgress += delta * 0.55 * walkSpeedRef.current;
         const strideZ = (Math.sin(runwayProgress) * 0.5 + 0.5) * (runwayLength * 0.35) - runwayLength * 0.15;
         avatarGroupRef.current.position.z = strideZ;
 
@@ -442,6 +460,15 @@ export const RunwaySection: React.FC = () => {
         if (lightsRef.current) {
           lightsRef.current.mainSpot.target = avatarGroupRef.current;
         }
+      } else if (!isPlayingRef.current && rigRef.current) {
+        // Smoothly settle into elegant standing runway pose
+        rigRef.current.leftLeg.rotation.x *= 0.92;
+        rigRef.current.rightLeg.rotation.x *= 0.92;
+        rigRef.current.leftArm.rotation.x *= 0.92;
+        rigRef.current.rightArm.rotation.x *= 0.92;
+        rigRef.current.torso.rotation.z *= 0.92;
+        rigRef.current.torso.rotation.y *= 0.92;
+        rigRef.current.skirt.rotation.z *= 0.92;
       }
 
       renderer.render(scene, camera);
@@ -521,19 +548,47 @@ export const RunwaySection: React.FC = () => {
     );
 
     // If customer has a portrait or personalized try-on, transfer skin tone / face
-    const userPhoto = personalizedTryOnUrl || customerPhoto;
+    const userPhoto = customerPhoto || personalizedTryOnUrl;
     if (userPhoto) {
       textureLoader.load(
         userPhoto,
         (faceTex) => {
+          faceTex.colorSpace = THREE.SRGBColorSpace;
+          faceTex.wrapS = THREE.ClampToEdgeWrapping;
+          faceTex.wrapT = THREE.ClampToEdgeWrapping;
+          // Crop and center on facial features for spherical head mesh
+          faceTex.repeat.set(1.0, 1.0);
+          faceTex.center.set(0.5, 0.5);
           faceMaterial.map = faceTex;
+          faceMaterial.roughness = 0.45;
           faceMaterial.needsUpdate = true;
         },
         undefined,
         () => {}
       );
     }
-  }, [currentOutfit, customerPhoto, personalizedTryOnUrl]);
+
+    // Dynamic silhouette adjustments from customer's selected body structure
+    if (customerBodyStructure && rigRef.current) {
+      const lower = customerBodyStructure.toLowerCase();
+      if (lower.includes('hourglass') || lower.includes('curated')) {
+        rigRef.current.skirt.scale.set(1.05, 1.0, 1.05);
+        rigRef.current.torso.scale.set(1.0, 1.0, 0.95);
+      } else if (lower.includes('pear')) {
+        rigRef.current.skirt.scale.set(1.15, 1.0, 1.15);
+        rigRef.current.torso.scale.set(0.92, 1.0, 0.92);
+      } else if (lower.includes('petite')) {
+        rigRef.current.skirt.scale.set(0.92, 0.94, 0.92);
+        rigRef.current.torso.scale.set(0.9, 0.94, 0.9);
+      } else if (lower.includes('athletic') || lower.includes('straight')) {
+        rigRef.current.skirt.scale.set(0.98, 1.02, 0.98);
+        rigRef.current.torso.scale.set(1.02, 1.02, 1.02);
+      } else if (lower.includes('plus') || lower.includes('curve')) {
+        rigRef.current.skirt.scale.set(1.18, 1.0, 1.18);
+        rigRef.current.torso.scale.set(1.12, 1.0, 1.1);
+      }
+    }
+  }, [currentOutfit, customerPhoto, customerBodyStructure, personalizedTryOnUrl]);
 
   // Handle Dynamic Runway Lighting Modes
   useEffect(() => {

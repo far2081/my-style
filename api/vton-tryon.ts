@@ -121,28 +121,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 2. Extract Request Payload
   const {
     avatar_image_url,
+    face_image_url,
+    body_image_url,
+    body_structure,
     clothing_image_url,
     productId,
     userId,
   } = req.body as {
     avatar_image_url?: string;
+    face_image_url?: string;
+    body_image_url?: string;
+    body_structure?: string;
     clothing_image_url?: string;
     productId?: string;
     userId?: string;
   };
 
-  // Stage 1 Diagnostic: Portrait and Garment Received
-  const isBase64Avatar = Boolean(avatar_image_url && avatar_image_url.startsWith('data:image/'));
+  // If customer uploaded both a face portrait and a full-body photo, choose full body as garment avatar
+  const primaryAvatarUrl = body_image_url && body_image_url.trim() ? body_image_url : avatar_image_url;
+
+  // Stage 1 Diagnostic: Portrait, Body, Structure, and Garment Received
+  const isBase64Avatar = Boolean(primaryAvatarUrl && primaryAvatarUrl.startsWith('data:image/'));
   console.log('[VTON Diagnostic Stage 1 - Request Received]', {
-    hasAvatar: Boolean(avatar_image_url && avatar_image_url.trim()),
+    hasAvatar: Boolean(primaryAvatarUrl && primaryAvatarUrl.trim()),
     isAvatarBase64: isBase64Avatar,
-    avatarLength: avatar_image_url ? avatar_image_url.length : 0,
+    avatarLength: primaryAvatarUrl ? primaryAvatarUrl.length : 0,
+    hasFacePortrait: Boolean(face_image_url && face_image_url.trim()),
+    hasBodyPhoto: Boolean(body_image_url && body_image_url.trim()),
+    bodyStructure: body_structure || 'unspecified',
     hasClothing: Boolean(clothing_image_url && clothing_image_url.trim()),
     clothingUrlPreview: clothing_image_url ? clothing_image_url.slice(0, 60) + '...' : 'none',
     productId: productId || 'unspecified',
   });
 
-  if (!avatar_image_url || !avatar_image_url.trim()) {
+  if (!primaryAvatarUrl || !primaryAvatarUrl.trim()) {
     return res.status(400).json({
       error: 'Customer portrait photo is required for Virtual Try-On.',
     });
@@ -154,7 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const rawAvatarUrl = avatar_image_url.trim();
+  const rawAvatarUrl = primaryAvatarUrl.trim();
   const accessibleClothingUrl = resolveAccessibleClothingUrl(clothing_image_url, req);
 
   // Stage 2 Diagnostic: Garment URL Resolved
