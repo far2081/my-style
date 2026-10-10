@@ -228,7 +228,25 @@ export const VirtualTryOnSection: React.FC = () => {
     setTryOnError(null);
     setJobStatus('processing');
 
-    const photoToUse = customerPhoto || selectedSample;
+    let photoToUse = customerPhoto || selectedSample;
+
+    // If using sample model image URL, convert it to base64 Data URL so RapidAPI receives direct file bytes
+    if (photoToUse && !photoToUse.startsWith('data:image/')) {
+      try {
+        const response = await fetch(photoToUse);
+        const blob = await response.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        photoToUse = base64Data;
+      } catch (err) {
+        console.warn('Could not convert sample model to base64, passing URL as-is:', err);
+      }
+    }
+
     const res = await aiProviders.tryon.generateTryOn({
       customerPhotoUrl: photoToUse,
       garmentImageUrl: currentDress.images.front,
