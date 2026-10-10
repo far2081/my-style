@@ -137,13 +137,7 @@ export const QuickStyleFinder: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">03. Occasion</span>
               <select
                 value={selectedOccasion}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedOccasion(val);
-                  const cleaned = val.split('&')[0].trim();
-                  setActiveFilterOccasion(cleaned);
-                  setActiveView('collections');
-                }}
+                onChange={(e) => setSelectedOccasion(e.target.value)}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="Barat" className="bg-plum text-ivory">Barat Royal</option>
@@ -159,7 +153,7 @@ export const QuickStyleFinder: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 4: Event Type -> Links to Bridal / Event Collection */}
+          {/* Card 4: Event Type */}
           <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
@@ -184,16 +178,7 @@ export const QuickStyleFinder: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">04. Event Type</span>
               <select
                 value={selectedEvent}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedEvent(val);
-                  if (val.includes('Bride')) {
-                    setActiveView('bridal');
-                  } else {
-                    setActiveFilterEvent(val);
-                    setActiveView('collections');
-                  }
-                }}
+                onChange={(e) => setSelectedEvent(e.target.value)}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="Bride (Own Wedding)" className="bg-plum text-ivory">Bride (Own Wedding)</option>
@@ -204,7 +189,7 @@ export const QuickStyleFinder: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 5: Style Vibe -> Links to 2026 Trends & Runway */}
+          {/* Card 5: Style Vibe */}
           <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
@@ -222,11 +207,7 @@ export const QuickStyleFinder: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">05. Style Vibe</span>
               <select
                 value={selectedStyle}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedStyle(val);
-                  setActiveView('trends');
-                }}
+                onChange={(e) => setSelectedStyle(e.target.value)}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="Royal Heritage Couture" className="bg-plum text-ivory">Royal Heritage</option>
@@ -237,7 +218,7 @@ export const QuickStyleFinder: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 6: Investment / Budget -> Links to Filtered Collections */}
+          {/* Card 6: Investment / Budget */}
           <div className="p-4 rounded-xl border border-champagne/20 bg-plum-dark/60 text-left flex flex-col justify-between h-36 group hover:border-champagne/50 transition-colors">
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-burgundy/80 border border-champagne/30 flex items-center justify-center text-champagne">
@@ -255,11 +236,7 @@ export const QuickStyleFinder: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider text-ivory/50 block">06. Investment</span>
               <select
                 value={selectedBudget}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedBudget(val);
-                  setActiveView('collections');
-                }}
+                onChange={(e) => setSelectedBudget(e.target.value)}
                 className="w-full bg-transparent text-xs font-semibold text-ivory border-b border-champagne/30 focus:outline-none focus:border-champagne mt-0.5 cursor-pointer"
               >
                 <option value="PKR 50,000 - 100,000" className="bg-plum text-ivory">50k - 100k PKR</option>

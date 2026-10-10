@@ -40,14 +40,25 @@ export const CameraModal: React.FC<CameraModalProps> = ({
         throw new Error('Camera access is not supported by your browser. Please use the upload option.');
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: mode,
-          width: { ideal: 1280 },
-          height: { ideal: 1280 },
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: mode,
+            width: { ideal: 1280 },
+            height: { ideal: 1280 },
+          },
+          audio: false,
+        });
+      } catch (constraintErr) {
+        // Fallback for mobile and desktop hardware that does not support ideal square constraints
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: mode },
+          audio: false,
+        }).catch(() => {
+          return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        });
+      }
 
       streamRef.current = stream;
 

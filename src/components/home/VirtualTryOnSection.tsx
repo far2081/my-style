@@ -152,11 +152,11 @@ export const VirtualTryOnSection: React.FC = () => {
     });
   }, [products, selectedCategory, selectedColor, searchTerm]);
 
-  // Available sample models
+  // Available sample models (Local reliable high-resolution atelier portraits)
   const sampleModels = [
-    { id: 'm1', name: 'Zoya (Warm Ivory)', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=500&q=80' },
-    { id: 'm2', name: 'Ayla (Deep Wheatish)', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80' },
-    { id: 'm3', name: 'Mahnoor (Porcelain)', img: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=500&q=80' },
+    { id: 'm1', name: 'Zoya (Warm Ivory)', img: '/images/bridal/makeup-royal.jpg' },
+    { id: 'm2', name: 'Ayla (Deep Wheatish)', img: '/images/bridal/makeup-emerald.jpg' },
+    { id: 'm3', name: 'Mahnoor (Porcelain)', img: '/images/bridal/makeup-ivory.jpg' },
   ];
 
   const [selectedSample, setSelectedSample] = useState(sampleModels[0].img);
