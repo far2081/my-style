@@ -7,7 +7,7 @@ import { PRODUCTS_DATA } from '../../data/products';
 import { aiProviders } from '../../services/aiProvider';
 
 export const AIStylistSection: React.FC = () => {
-  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto, activeFilterOccasion, activeFilterEvent, setActiveView } = useApp();
+  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto, activeFilterOccasion, activeFilterEvent, setActiveView, setCustomerBodyStructure } = useApp();
 
   const [step, setStep] = useState<'input' | 'processing' | 'result' | 'error'>('input');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,6 +116,7 @@ export const AIStylistSection: React.FC = () => {
       const stylistRes = await (aiProviders.stylist as any).analyzeAndRecommend(
         {
           preferences: {
+            age: ageGroup,
             occasion: selectedOccasion,
             event: selectedEvent,
             colors: preferredColors,
@@ -123,6 +124,7 @@ export const AIStylistSection: React.FC = () => {
             bodyStructure,
             budget,
             style: styleVibe,
+            season,
           },
           userPhotoUrl: customerPhoto || undefined,
         },
@@ -406,6 +408,7 @@ export const AIStylistSection: React.FC = () => {
                 <div className="flex flex-wrap gap-3 pt-2">
                   <button
                     onClick={() => {
+                      setCustomerBodyStructure(bodyStructure);
                       setTryOnProduct(recommendedProduct);
                       setIsTryOnModalOpen(true);
                     }}

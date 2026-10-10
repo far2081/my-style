@@ -95,9 +95,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const rawProducts = Array.isArray(availableProducts) ? availableProducts : [];
 
-  // Filter catalogue to relevant items for the prompt (max 20 items to keep payload fast and light)
   const targetOcc = (preferences.occasion || '').toLowerCase();
-  const catalogContext = rawProducts
+  const targetColors = (preferences.colors || []).map((c) => c.toLowerCase());
+  const targetDress = (preferences.dressType || '').toLowerCase();
+  const targetSeason = (preferences.season || '').toLowerCase();
+
+  // Sort available catalog items to place most relevant items on top
+  const sortedCatalog = [...rawProducts].sort((a, b) => {
+    let scoreA = 0;
+    let scoreB = 0;
+
+    const aOcc = (a.occasion || '').toLowerCase();
+    const bOcc = (b.occasion || '').toLowerCase();
+    if (targetOcc && (aOcc.includes(targetOcc) || targetOcc.includes(aOcc))) scoreA += 40;
+    if (targetOcc && (bOcc.includes(targetOcc) || targetOcc.includes(bOcc))) scoreB += 40;
+
+    const aCol = (a.color || '').toLowerCase();
+    const bCol = (b.color || '').toLowerCase();
+    if (targetColors.some((c) => aCol.includes(c))) scoreA += 30;
+    if (targetColors.some((c) => bCol.includes(c))) scoreB += 30;
+
+    const aType = (a.dressType || '').toLowerCase();
+    const bType = (b.dressType || '').toLowerCase();
+    if (targetDress && (aType.includes(targetDress) || targetDress.includes(aType))) scoreA += 20;
+    if (targetDress && (bType.includes(targetDress) || targetDress.includes(bType))) scoreB += 20;
+
+    return scoreB - scoreA;
+  });
+
+  const catalogContext = sortedCatalog
     .slice(0, 25)
     .map((p) => ({
       id: p.id,
@@ -113,17 +139,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // If no Gemini key is provided, return structured algorithmic match immediately
   if (!apiKey || apiKey.includes('placeholder')) {
+    const topPick = catalogContext[0] || { name: 'Couture Piece', fabric: 'Pure Silk', color: 'Bespoke' };
     return res.status(200).json({
       success: true,
       fallback: true,
       provider: 'StyleMira Haute Couture Neural Engine',
-      curatedAdvice: `Curated exclusively for your ${preferences.occasion || 'Haute Couture'} celebration based on our archival Pakistani aesthetic principles, ${preferences.dressType || 'bespoke'} silhouettes, and complementary palette harmonies.`,
+      curatedAdvice: `Curated exclusively for your ${preferences.occasion || 'Haute Couture'} celebration. Features the ${topPick.name} crafted in ${topPick.fabric || 'authentic silk'}, chosen to harmonize with your ${preferences.colors?.join('/') || 'custom'} palette and ${preferences.dressType || 'bespoke'} silhouette.`,
       recommendedProductIds: catalogContext.slice(0, 4).map((p) => p.id),
       reasons: catalogContext.slice(0, 4).reduce((acc: any, p: any) => {
-        acc[p.id] = `Tailored for ${preferences.occasion || 'couture'} occasions with ${p.fabric || 'authentic silk'} drape in radiant ${p.color || 'heritage'} tones.`;
+        acc[p.id] = `Tailored for ${p.occasion || preferences.occasion} occasions with ${p.fabric || 'authentic silk'} drape in radiant ${p.color} tones.`;
         return acc;
       }, {}),
-      recommendedSilhouettes: [preferences.dressType || 'Royal Peshwas', 'Farshi Gharara', 'Flared Kalidaar'],
+      recommendedSilhouettes: [topPick.dressType || preferences.dressType || 'Royal Peshwas', 'Farshi Gharara', 'Flared Kalidaar'],
       undertoneMatch: 'Champagne Warm / Royal Jewel',
       paletteConfidence: 96,
     });
