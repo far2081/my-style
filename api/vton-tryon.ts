@@ -165,11 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     let rapidResponse: Response;
 
-    // Prepare Avatar binary buffer
-    let avatarBuffer: Buffer;
-    let avatarMime = 'image/jpeg';
-    let avatarFilename = 'avatar.jpg';
-
+    // Check if customer portrait is Base64 data (uploaded or captured via webcam)
     if (isBase64Avatar) {
       const match = rawAvatarUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
       if (!match) {
@@ -177,71 +173,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error: 'Invalid customer photo format. Supported formats are JPEG, PNG, or WEBP.',
         });
       }
+
       const rawExt = match[1].toLowerCase();
       const ext = rawExt === 'jpeg' || rawExt === 'jpg' ? 'jpg' : rawExt === 'png' ? 'png' : 'webp';
-      avatarMime = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-      avatarFilename = `avatar.${ext}`;
-      avatarBuffer = Buffer.from(match[2], 'base64');
-    } else {
-      // Fetch avatar URL from Vercel / remote host
-      const accessibleAvatarUrl = resolveAccessibleAvatarUrl(rawAvatarUrl, req);
-      console.log('[VTON Diagnostic Stage 3A - Fetching Avatar URL Binary]', accessibleAvatarUrl.slice(0, 80));
-      const avatarRes = await fetch(accessibleAvatarUrl);
-      if (!avatarRes.ok) {
-        throw new Error(`Failed to retrieve customer portrait or sample model: HTTP ${avatarRes.status}`);
+      const base64Data = match[2];
+      const avatarBuffer = Buffer.from(base64Data, 'base64');
+      const avatarMime = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+      if (avatarBuffer.length < 500) {
+        return res.status(400).json({
+          error: 'Customer photo is corrupted or too small. Minimum resolution is 256×256 pixels.',
+        });
       }
-      avatarBuffer = Buffer.from(await avatarRes.arrayBuffer());
-      const rawType = avatarRes.headers.get('content-type') || 'image/jpeg';
-      avatarMime = rawType.includes('png') ? 'image/png' : rawType.includes('webp') ? 'image/webp' : 'image/jpeg';
-      avatarFilename = avatarMime.includes('png') ? 'avatar.png' : avatarMime.includes('webp') ? 'avatar.webp' : 'avatar.jpg';
-    }
+      if (avatarBuffer.length > 12 * 1024 * 1024) {
+        return res.status(400).json({
+          error: 'Customer photo size exceeds the 12 MB limit.',
+        });
+      }
 
-    if (avatarBuffer.length < 500) {
-      return res.status(400).json({
-        error: 'Customer photo is corrupted or too small. Minimum resolution is 256×256 pixels.',
+      // Fetch the clothing image binary bytes
+      console.log('[VTON Diagnostic Stage 3 - Fetching Garment Binary]');
+      const clothingRes = await fetch(accessibleClothingUrl);
+      if (!clothingRes.ok) {
+        throw new Error(`Failed to retrieve garment image: HTTP ${clothingRes.status}`);
+      }
+      const clothingArrayBuffer = await clothingRes.arrayBuffer();
+      const clothingBuffer = Buffer.from(clothingArrayBuffer);
+      const clothingMime = clothingRes.headers.get('content-type') || 'image/jpeg';
+
+      console.log('[VTON Diagnostic Stage 4 - Portrait & Garment Prepared for Direct Multipart File Upload]', {
+        avatarBytes: avatarBuffer.length,
+        avatarMime,
+        clothingBytes: clothingBuffer.length,
+        clothingMime,
+        targetEndpoint: VTON_FILE_ENDPOINT,
       });
-    }
-    if (avatarBuffer.length > 12 * 1024 * 1024) {
-      return res.status(400).json({
-        error: 'Customer photo size exceeds the 12 MB limit.',
+
+      // Construct multipart form data for /try-on-file endpoint
+      const fileFormData = new FormData();
+      fileFormData.append('avatar_image', new Blob([avatarBuffer], { type: avatarMime }), `avatar.${ext}`);
+      fileFormData.append('clothing_image', new Blob([clothingBuffer], { type: clothingMime }), 'garment.jpg');
+
+      console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-file]');
+      rapidResponse = await fetch(VTON_FILE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'X-RapidAPI-Key': apiKey.trim(),
+          'X-RapidAPI-Host': apiHost.trim(),
+        },
+        body: fileFormData,
       });
+    } else {
+      // Avatar is a web URL (e.g. sample atelier model)
+      const accessibleAvatarUrl = resolveAccessibleAvatarUrl(rawAvatarUrl, req);
+
+      console.log('[VTON Diagnostic Stage 4 - URL Mode Prepared]', {
+        avatarUrlPreview: accessibleAvatarUrl.slice(0, 70) + '...',
+        clothingUrlPreview: accessibleClothingUrl.slice(0, 70) + '...',
+        targetEndpoint: VTON_URL_ENDPOINT,
+      });
+
+      const urlFormData = new FormData();
+      urlFormData.append('avatar_image_url', accessibleAvatarUrl);
+      urlFormData.append('clothing_image_url', accessibleClothingUrl);
+
+      console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-url]');
+      rapidResponse = await fetch(VTON_URL_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'X-RapidAPI-Key': apiKey.trim(),
+          'X-RapidAPI-Host': apiHost.trim(),
+        },
+        body: urlFormData,
+      });
+
+      // If provider returned 415 or 400 with "JSON", retry with application/json
+      if (!rapidResponse.ok && (rapidResponse.status === 415 || rapidResponse.status === 400)) {
+        const peekText = await rapidResponse.clone().text().catch(() => '');
+        if (peekText.toLowerCase().includes('json') || rapidResponse.status === 415) {
+          console.log('[VTON Notice] Retrying Try-On Diffusion with JSON payload');
+          rapidResponse = await fetch(VTON_URL_ENDPOINT, {
+            method: 'POST',
+            headers: {
+              'X-RapidAPI-Key': apiKey.trim(),
+              'X-RapidAPI-Host': apiHost.trim(),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              avatar_image_url: accessibleAvatarUrl,
+              clothing_image_url: accessibleClothingUrl,
+            }),
+          });
+        }
+      }
     }
-
-    // Fetch the clothing image binary bytes
-    console.log('[VTON Diagnostic Stage 3B - Fetching Garment Binary]', accessibleClothingUrl.slice(0, 80));
-    const clothingRes = await fetch(accessibleClothingUrl);
-    if (!clothingRes.ok) {
-      throw new Error(`Failed to retrieve garment image: HTTP ${clothingRes.status}`);
-    }
-    const clothingBuffer = Buffer.from(await clothingRes.arrayBuffer());
-    const rawClothingType = clothingRes.headers.get('content-type') || 'image/jpeg';
-    const clothingMime = rawClothingType.includes('png') ? 'image/png' : rawClothingType.includes('webp') ? 'image/webp' : 'image/jpeg';
-    const clothingFilename = clothingMime.includes('png') ? 'garment.png' : clothingMime.includes('webp') ? 'garment.webp' : 'garment.jpg';
-
-    console.log('[VTON Diagnostic Stage 4 - Direct Binary Multipart Prepared]', {
-      avatarBytes: avatarBuffer.length,
-      avatarMime,
-      avatarFilename,
-      clothingBytes: clothingBuffer.length,
-      clothingMime,
-      clothingFilename,
-      targetEndpoint: VTON_FILE_ENDPOINT,
-    });
-
-    // Send direct binary multipart form-data to /try-on-file
-    const fileFormData = new FormData();
-    fileFormData.append('avatar_image', new Blob([avatarBuffer], { type: avatarMime }), avatarFilename);
-    fileFormData.append('clothing_image', new Blob([clothingBuffer], { type: clothingMime }), clothingFilename);
-
-    console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-file]');
-    rapidResponse = await fetch(VTON_FILE_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'X-RapidAPI-Key': apiKey.trim(),
-        'X-RapidAPI-Host': apiHost.trim(),
-      },
-      body: fileFormData,
-    });
 
     // Stage 6 Diagnostic: API Response Status
     console.log('[VTON Diagnostic Stage 6 - Provider Responded]', {
