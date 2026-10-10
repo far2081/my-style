@@ -26,6 +26,7 @@ export const VirtualTryOnSection: React.FC = () => {
     personalizedTryOnProductId,
     setPersonalizedTryOnProductId,
     activeFilterOccasion,
+    setActiveView: setPageActiveView,
   } = useApp();
 
   const currentDress = tryOnProduct || products[0] || PRODUCTS_DATA[0];
@@ -169,6 +170,7 @@ export const VirtualTryOnSection: React.FC = () => {
   const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraCaptureInputRef = useRef<HTMLInputElement>(null);
   const bodyFileInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to detect whether image is a portrait/bust photo or full-body photo
@@ -496,6 +498,7 @@ export const VirtualTryOnSection: React.FC = () => {
                     {/* Upload / Camera CTAs */}
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       <button
+                        type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs transition-colors"
                       >
@@ -503,7 +506,16 @@ export const VirtualTryOnSection: React.FC = () => {
                         <span className="font-semibold text-[11px]">Upload Photo</span>
                       </button>
                       <button
-                        onClick={() => setIsCameraOpen(true)}
+                        type="button"
+                        onClick={() => {
+                          // Check if getUserMedia is available in current browser context (requires HTTPS / localhost)
+                          if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                            setIsCameraOpen(true);
+                          } else {
+                            // Direct hardware camera fallback for mobile & restricted browsers
+                            cameraCaptureInputRef.current?.click();
+                          }
+                        }}
                         className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs transition-colors"
                       >
                         <Camera className="w-4 h-4" />
@@ -573,14 +585,22 @@ export const VirtualTryOnSection: React.FC = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/png,image/jpeg,image/webp,image/*"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                <input
+                  ref={cameraCaptureInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="user"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
                 <input
                   ref={bodyFileInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/png,image/jpeg,image/webp,image/*"
                   className="hidden"
                   onChange={handleBodyFileUpload}
                 />
@@ -905,12 +925,17 @@ export const VirtualTryOnSection: React.FC = () => {
                   {renderedResultUrl && (
                     <>
                       <button
+                        type="button"
                         onClick={() => {
                           const runwayEl = document.getElementById('runway');
                           if (runwayEl) {
                             runwayEl.scrollIntoView({ behavior: 'smooth' });
                           } else {
-                            setActiveView('runway' as any);
+                            setPageActiveView('runway');
+                            setTimeout(() => {
+                              const el = document.getElementById('runway');
+                              el?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
                           }
                         }}
                         className="bg-gradient-to-r from-champagne via-champagne-light to-champagne hover:from-champagne-light hover:to-champagne text-plum font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg shadow-gold-glow flex items-center gap-1.5 transition-all hover:scale-105"

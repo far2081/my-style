@@ -217,13 +217,24 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 onChange={handleFileFallback}
                 className="hidden"
               />
-              <button
-                onClick={() => fileFallbackRef.current?.click()}
-                className="w-full bg-champagne text-plum font-bold text-xs uppercase tracking-wider py-3 rounded-xl shadow-gold-subtle flex items-center justify-center gap-2 hover:bg-champagne-light transition-all"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Select Photo from Device</span>
-              </button>
+              <div className="flex flex-col gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => fileFallbackRef.current?.click()}
+                  className="w-full bg-champagne text-plum font-bold text-xs uppercase tracking-wider py-3 rounded-xl shadow-gold-subtle flex items-center justify-center gap-2 hover:bg-champagne-light transition-all"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Photo from Device</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startCamera(facingMode)}
+                  className="w-full bg-plum-dark/90 text-champagne border border-champagne/30 font-semibold text-xs uppercase tracking-wider py-2.5 rounded-xl flex items-center justify-center gap-2 hover:bg-burgundy transition-all"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>Retry Camera Permission</span>
+                </button>
+              </div>
             </div>
           ) : capturedPhoto ? (
             <div className="relative w-full h-full">
