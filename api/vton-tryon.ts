@@ -243,27 +243,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: fileFormData,
     });
 
-      // If provider returned 415 or 400 with "JSON", retry with application/json
-      if (!rapidResponse.ok && (rapidResponse.status === 415 || rapidResponse.status === 400)) {
-        const peekText = await rapidResponse.clone().text().catch(() => '');
-        if (peekText.toLowerCase().includes('json') || rapidResponse.status === 415) {
-          console.log('[VTON Notice] Retrying Try-On Diffusion with JSON payload');
-          rapidResponse = await fetch(VTON_URL_ENDPOINT, {
-            method: 'POST',
-            headers: {
-              'X-RapidAPI-Key': apiKey.trim(),
-              'X-RapidAPI-Host': apiHost.trim(),
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              avatar_image_url: accessibleAvatarUrl,
-              clothing_image_url: accessibleClothingUrl,
-            }),
-          });
-        }
-      }
-    }
-
     // Stage 6 Diagnostic: API Response Status
     console.log('[VTON Diagnostic Stage 6 - Provider Responded]', {
       status: rapidResponse.status,
