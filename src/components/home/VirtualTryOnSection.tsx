@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from '../common/ImageWithFallback';
 import { CameraModal } from '../common/CameraModal';
-import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter } from 'lucide-react';
+import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter, Eye, Maximize2, Split } from 'lucide-react';
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
 
@@ -39,6 +39,8 @@ export const VirtualTryOnSection: React.FC = () => {
     personalizedTryOnProductId === currentDress.id ? personalizedTryOnUrl : null
   );
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [compareMode, setCompareMode] = useState<'single' | 'split'>('single');
+  const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
 
   // Clear stale try-on result whenever a new dress is selected
   useEffect(() => {
@@ -736,20 +738,59 @@ export const VirtualTryOnSection: React.FC = () => {
               {renderedResultUrl ? (
                 /* Mode 1: Personalized Try-On Result Active (Strictly 1 genuine frontal image) */
                 <div className="space-y-3">
-                  <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                  <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="bg-burgundy text-champagne font-bold border border-champagne/40 px-3 py-1.5 rounded-lg text-xs font-brand uppercase tracking-wider flex items-center gap-1.5 shadow-gold-subtle">
                         <Sparkles className="w-3.5 h-3.5 text-champagne" />
                         <span>Your Try-On (Front View)</span>
                       </span>
+
+                      {/* Side-by-side comparison toggle */}
+                      <div className="flex items-center bg-plum-dark/90 border border-champagne/25 rounded-lg p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setCompareMode('single')}
+                          className={`px-2.5 py-1 rounded text-[10px] font-brand uppercase tracking-wider transition-all ${
+                            compareMode === 'single'
+                              ? 'bg-champagne text-plum font-bold shadow-sm'
+                              : 'text-ivory/70 hover:text-champagne'
+                          }`}
+                        >
+                          Single View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCompareMode('split')}
+                          className={`px-2.5 py-1 rounded text-[10px] font-brand uppercase tracking-wider transition-all flex items-center gap-1 ${
+                            compareMode === 'split'
+                              ? 'bg-champagne text-plum font-bold shadow-sm'
+                              : 'text-ivory/70 hover:text-champagne'
+                          }`}
+                        >
+                          <Split className="w-3 h-3" />
+                          <span>Compare Original</span>
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      onClick={handleResetResult}
-                      className="text-xs text-champagne hover:text-champagne-light bg-plum-dark/60 border border-champagne/20 px-3 py-1.5 rounded-lg transition-colors font-brand uppercase tracking-wider"
-                    >
-                      View Catalog Garment
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsZoomModalOpen(true)}
+                        className="text-xs text-champagne hover:text-champagne-light bg-plum-dark/60 border border-champagne/20 px-3 py-1.5 rounded-lg transition-colors font-brand uppercase tracking-wider flex items-center gap-1"
+                        title="Enlarge high-resolution try-on"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Zoom</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetResult}
+                        className="text-xs text-champagne hover:text-champagne-light bg-plum-dark/60 border border-champagne/20 px-3 py-1.5 rounded-lg transition-colors font-brand uppercase tracking-wider"
+                      >
+                        View Catalog Garment
+                      </button>
+                    </div>
                   </div>
 
                   {/* Explicit Mandatory Notice: Additional views are not available yet */}
@@ -826,13 +867,38 @@ export const VirtualTryOnSection: React.FC = () => {
                 ) : (
                   <>
                     {/* Clean Image Stage - ZERO CSS rotateY card-flip or transform, object-contain preserves entire body and face */}
-                    <div className="w-full h-full flex items-center justify-center overflow-hidden bg-black/60">
-                      <img
-                        src={getDisplayedImage()}
-                        alt={`${currentDress.name} - ${activeView} view`}
-                        className="w-full h-full object-contain transition-opacity duration-300 pointer-events-none"
-                      />
-                    </div>
+                    {renderedResultUrl && compareMode === 'split' ? (
+                      <div className="w-full h-full grid grid-cols-2 gap-1 bg-black/80 p-1">
+                        <div className="relative h-full flex flex-col items-center justify-center overflow-hidden rounded-xl bg-charcoal/60 border border-champagne/15">
+                          <img
+                            src={currentDress.images.front}
+                            alt={`${currentDress.name} - Original`}
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                          <span className="absolute bottom-2 bg-plum-dark/90 border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne px-2 py-0.5 rounded">
+                            Original Garment
+                          </span>
+                        </div>
+                        <div className="relative h-full flex flex-col items-center justify-center overflow-hidden rounded-xl bg-charcoal/60 border border-champagne/30">
+                          <img
+                            src={renderedResultUrl}
+                            alt={`${currentDress.name} - AI Try-On`}
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                          <span className="absolute bottom-2 bg-burgundy/90 border border-champagne/40 text-[9px] font-brand uppercase tracking-wider text-champagne font-bold px-2 py-0.5 rounded shadow-gold-subtle">
+                            Your Neural Try-On
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center overflow-hidden bg-black/60">
+                        <img
+                          src={getDisplayedImage()}
+                          alt={`${currentDress.name} - ${activeView} view`}
+                          className="w-full h-full object-contain transition-opacity duration-300 pointer-events-none"
+                        />
+                      </div>
+                    )}
 
                     {/* Watermark / Brand Badge */}
                     <div className="absolute top-4 left-4 bg-plum-dark/90 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2 z-10 shadow-luxury">
@@ -972,6 +1038,60 @@ export const VirtualTryOnSection: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* High-Resolution Zoom Modal */}
+      {isZoomModalOpen && renderedResultUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-charcoal/95 backdrop-blur-md animate-fadeIn">
+          <div className="relative max-w-4xl w-full bg-plum-dark border border-champagne/40 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col items-center">
+            <div className="w-full flex items-center justify-between pb-3 mb-3 border-b border-champagne/20">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-champagne" />
+                <span className="font-editorial text-lg text-ivory font-bold uppercase">
+                  {currentDress.name} — High-Res Neural Fitting
+                </span>
+              </div>
+              <button
+                onClick={() => setIsZoomModalOpen(false)}
+                className="p-1.5 text-ivory/70 hover:text-champagne transition-colors"
+                aria-label="Close zoom"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative max-h-[75vh] w-full flex items-center justify-center overflow-hidden rounded-2xl bg-black">
+              <img
+                src={renderedResultUrl}
+                alt={`${currentDress.name} - High-Res Try-On`}
+                className="max-h-[75vh] w-auto object-contain"
+              />
+            </div>
+
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 text-xs">
+              <span className="text-champagne font-brand tracking-wider uppercase">
+                Authentic 2D Frontal Synthesis • {currentDress.fabric} ({currentDress.color})
+              </span>
+              <div className="flex gap-2">
+                <a
+                  href={renderedResultUrl}
+                  download={`StyleMira_HighRes_${currentDress.name.replace(/\s+/g, '_')}.jpg`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-champagne text-plum font-bold uppercase px-4 py-2 rounded-lg shadow-gold-subtle"
+                >
+                  Download Full-Res
+                </a>
+                <button
+                  onClick={() => setIsZoomModalOpen(false)}
+                  className="bg-plum-dark border border-champagne/30 text-champagne uppercase px-4 py-2 rounded-lg"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
