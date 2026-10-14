@@ -13,6 +13,7 @@ export const VirtualTryOnSection: React.FC = () => {
   const {
     tryOnProduct,
     setTryOnProduct,
+    setSelectedProduct,
     addToCart,
     products,
     customerPhoto,
@@ -670,6 +671,7 @@ export const VirtualTryOnSection: React.FC = () => {
                         key={prod.id}
                         onClick={() => {
                           setTryOnProduct(prod);
+                          setSelectedProduct(prod);
                           setRenderedResultUrl(null);
                           setPersonalizedTryOnUrl(null);
                           setPersonalizedTryOnProductId(null);
@@ -982,7 +984,7 @@ export const VirtualTryOnSection: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  {renderedResultUrl && (
+                  {renderedResultUrl ? (
                     <>
                       <button
                         type="button"
@@ -1019,6 +1021,26 @@ export const VirtualTryOnSection: React.FC = () => {
                         Delete Result
                       </button>
                     </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const runwayEl = document.getElementById('runway');
+                        if (runwayEl) {
+                          runwayEl.scrollIntoView({ behavior: 'smooth' });
+                        } else {
+                          setPageActiveView('runway');
+                          setTimeout(() => {
+                            const el = document.getElementById('runway');
+                            el?.scrollIntoView({ behavior: 'smooth' });
+                          }, 100);
+                        }
+                      }}
+                      className="bg-plum hover:bg-burgundy text-champagne border border-champagne/40 font-semibold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-champagne" />
+                      <span>View on 3D Runway</span>
+                    </button>
                   )}
                   <button
                     onClick={() => addToCart(currentDress)}
