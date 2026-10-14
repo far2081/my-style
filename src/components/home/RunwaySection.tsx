@@ -19,6 +19,8 @@ import {
   ZoomOut,
   Maximize2,
   Info,
+  X,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export const RunwaySection: React.FC = () => {
@@ -28,6 +30,7 @@ export const RunwaySection: React.FC = () => {
     customerBodyPhoto,
     customerBodyStructure,
     personalizedTryOnUrl,
+    personalizedTryOnProductId,
     tryOnProduct,
   } = useApp();
 
@@ -37,6 +40,9 @@ export const RunwaySection: React.FC = () => {
   const [outfitIndex, setOutfitIndex] = useState(0);
   const [walkSpeed, setWalkSpeed] = useState<number>(1.0);
   const [showTechInfo, setShowTechInfo] = useState(false);
+  const [showTryOnPreview, setShowTryOnPreview] = useState(true);
+  const [previewImgLoaded, setPreviewImgLoaded] = useState(false);
+  const [previewImgError, setPreviewImgError] = useState(false);
 
   const isPlayingRef = useRef(isPlaying);
   const walkSpeedRef = useRef(walkSpeed);
@@ -48,6 +54,15 @@ export const RunwaySection: React.FC = () => {
   useEffect(() => {
     walkSpeedRef.current = walkSpeed;
   }, [walkSpeed]);
+
+  // Reset preview card state when a new personalized try-on URL arrives
+  useEffect(() => {
+    if (personalizedTryOnUrl) {
+      setPreviewImgLoaded(false);
+      setPreviewImgError(false);
+      setShowTryOnPreview(true);
+    }
+  }, [personalizedTryOnUrl]);
 
   // If a dress was selected in try-on, match it as initial outfit
   useEffect(() => {
@@ -547,11 +562,10 @@ export const RunwaySection: React.FC = () => {
       }
     );
 
-    // If customer has a portrait or personalized try-on, transfer skin tone / face
-    const userPhoto = customerPhoto || personalizedTryOnUrl;
-    if (userPhoto) {
+    // Only use customerPhoto for face texture; never apply personalizedTryOnUrl or full 2D garment images to the head sphere
+    if (customerPhoto) {
       textureLoader.load(
-        userPhoto,
+        customerPhoto,
         (faceTex) => {
           faceTex.colorSpace = THREE.SRGBColorSpace;
           faceTex.wrapS = THREE.ClampToEdgeWrapping;
@@ -564,8 +578,16 @@ export const RunwaySection: React.FC = () => {
           faceMaterial.needsUpdate = true;
         },
         undefined,
-        () => {}
+        () => {
+          faceMaterial.map = null;
+          faceMaterial.needsUpdate = true;
+        }
       );
+    } else {
+      // Keep existing default face material
+      faceMaterial.map = null;
+      faceMaterial.roughness = 0.55;
+      faceMaterial.needsUpdate = true;
     }
 
     // Dynamic silhouette adjustments from customer's selected body structure
@@ -588,7 +610,7 @@ export const RunwaySection: React.FC = () => {
         rigRef.current.torso.scale.set(1.12, 1.0, 1.1);
       }
     }
-  }, [currentOutfit, customerPhoto, customerBodyStructure, personalizedTryOnUrl]);
+  }, [currentOutfit, customerPhoto, customerBodyStructure]);
 
   // Handle Dynamic Runway Lighting Modes
   useEffect(() => {
@@ -736,6 +758,77 @@ export const RunwaySection: React.FC = () => {
             <div className="absolute bottom-6 left-6 bg-burgundy/85 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-xl text-[10px] font-brand tracking-widest uppercase text-champagne shadow-luxury">
               Camera: {activeAngle} View ({lightingMode.toUpperCase()} Lighting)
             </div>
+
+            {/* Floating Premium AI Try-On Preview Card (2D Neural Synthesis Preview) */}
+            {personalizedTryOnUrl && showTryOnPreview && (
+              <div className="absolute top-20 right-6 z-20 w-44 sm:w-52 bg-plum-dark/95 border border-champagne/40 rounded-2xl p-3 shadow-luxury backdrop-blur-md transition-all animate-fadeIn">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-champagne/20">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-champagne animate-pulse" />
+                    <span className="text-[10px] font-brand tracking-wider uppercase text-champagne font-bold">
+                      AI Try-On Preview
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowTryOnPreview(false)}
+                    className="p-1 text-ivory/60 hover:text-champagne transition-colors"
+                    title="Minimize preview"
+                    aria-label="Close preview"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-charcoal border border-champagne/25 flex items-center justify-center">
+                  {!previewImgLoaded && !previewImgError && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-charcoal/80 z-10">
+                      <RotateCw className="w-4 h-4 text-champagne animate-spin" />
+                      <span className="text-[9px] font-brand uppercase tracking-wider text-champagne/80">Loading...</span>
+                    </div>
+                  )}
+
+                  {previewImgError ? (
+                    <div className="p-3 text-center space-y-1">
+                      <ImageIcon className="w-5 h-5 text-champagne/50 mx-auto" />
+                      <p className="text-[10px] text-ivory/60">Preview unavailable</p>
+                    </div>
+                  ) : (
+                    <img
+                      src={personalizedTryOnUrl}
+                      alt="Personalized AI Try-On"
+                      className={`w-full h-full object-cover transition-opacity duration-300 ${
+                        previewImgLoaded ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      onLoad={() => setPreviewImgLoaded(true)}
+                      onError={() => {
+                        setPreviewImgError(true);
+                        setPreviewImgLoaded(true);
+                      }}
+                    />
+                  )}
+
+                  <div className="absolute bottom-1.5 inset-x-1.5 bg-black/75 backdrop-blur-sm px-2 py-0.5 rounded text-[8px] font-brand uppercase tracking-wider text-ivory/80 text-center truncate">
+                    {tryOnProduct?.name || currentOutfit.name}
+                  </div>
+                </div>
+
+                <div className="mt-2 text-[9px] text-ivory/60 text-center leading-tight">
+                  2D Neural Preview • Real-time 3D Catwalk Walk on Stage
+                </div>
+              </div>
+            )}
+
+            {/* Re-open Try-On Preview Pill if minimized */}
+            {personalizedTryOnUrl && !showTryOnPreview && (
+              <button
+                onClick={() => setShowTryOnPreview(true)}
+                className="absolute top-20 right-6 z-20 bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/40 px-3 py-1.5 rounded-xl shadow-luxury text-[10px] font-brand uppercase tracking-wider flex items-center gap-1.5 transition-all hover:scale-105"
+                title="Show 2D AI Try-On Preview"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-champagne" />
+                <span>AI Try-On Preview</span>
+              </button>
+            )}
 
             {/* Outfit Switch Arrows */}
             <button
