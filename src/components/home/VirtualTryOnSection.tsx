@@ -453,11 +453,13 @@ export const VirtualTryOnSection: React.FC = () => {
                           Change Photo
                         </button>
                         <button
+                          type="button"
                           onClick={() => setIsCameraOpen(true)}
-                          className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors"
-                          title="Retake with Camera"
+                          className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-[10px]"
+                          title="Start Camera to capture live portrait"
                         >
-                          <Camera className="w-3.5 h-3.5" />
+                          <Camera className="w-3.5 h-3.5 text-champagne" />
+                          <span>Start Camera</span>
                         </button>
                       </div>
                     </div>
@@ -509,19 +511,11 @@ export const VirtualTryOnSection: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          // Check if getUserMedia is available in current browser context (requires HTTPS / localhost)
-                          if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-                            setIsCameraOpen(true);
-                          } else {
-                            // Direct hardware camera fallback for mobile & restricted browsers
-                            cameraCaptureInputRef.current?.click();
-                          }
-                        }}
+                        onClick={() => setIsCameraOpen(true)}
                         className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs transition-colors"
                       >
                         <Camera className="w-4 h-4" />
-                        <span className="font-semibold text-[11px]">Take Photo</span>
+                        <span className="font-semibold text-[11px]">Start Camera</span>
                       </button>
                     </div>
 
