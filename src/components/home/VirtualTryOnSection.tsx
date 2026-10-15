@@ -162,11 +162,11 @@ export const VirtualTryOnSection: React.FC = () => {
     });
   }, [products, selectedCategory, selectedColor, searchTerm]);
 
-  // Available sample models (Local reliable high-resolution atelier portraits)
+  // Available sample models (Full-length standing atelier models for complete silhouette try-on)
   const sampleModels = [
-    { id: 'm1', name: 'Zoya (Warm Ivory)', img: '/images/bridal/makeup-royal.jpg' },
-    { id: 'm2', name: 'Ayla (Deep Wheatish)', img: '/images/bridal/makeup-emerald.jpg' },
-    { id: 'm3', name: 'Mahnoor (Porcelain)', img: '/images/bridal/makeup-ivory.jpg' },
+    { id: 'm1', name: 'Zoya (Warm Ivory)', img: '/images/categories/Casual/dress_01.jpg' },
+    { id: 'm2', name: 'Ayla (Deep Wheatish)', img: '/images/categories/Festive/dress_01.jpg' },
+    { id: 'm3', name: 'Mahnoor (Porcelain)', img: '/images/categories/Party/dress_01.jpg' },
   ];
 
   const [selectedSample, setSelectedSample] = useState(sampleModels[0].img);
