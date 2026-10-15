@@ -1301,7 +1301,7 @@ export const RunwaySection: React.FC = () => {
                     <img
                       src={personalizedTryOnUrl}
                       alt="Personalized AI Try-On"
-                      className={`w-full h-full object-cover transition-opacity duration-300 ${
+                      className={`w-full h-full object-contain transition-opacity duration-300 ${
                         previewImgLoaded ? 'opacity-100' : 'opacity-0'
                       }`}
                       onLoad={() => setPreviewImgLoaded(true)}

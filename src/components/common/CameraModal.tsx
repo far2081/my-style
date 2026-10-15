@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, X, RotateCw, Check, AlertCircle, Upload, VideoOff, CheckCircle2 } from 'lucide-react';
+import { Camera, X, RotateCw, Check, AlertCircle, Upload, VideoOff, CheckCircle2, Info } from 'lucide-react';
 
 interface CameraModalProps {
   isOpen: boolean;
@@ -330,7 +330,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
       {/* Modal Card */}
       <div
-        className="relative bg-plum-dark border border-champagne/40 rounded-3xl max-w-lg w-full shadow-2xl p-6 text-ivory z-10 space-y-5"
+        className="relative bg-plum-dark border border-champagne/40 rounded-3xl max-w-xl w-full shadow-2xl p-5 sm:p-6 text-ivory z-10 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -343,7 +343,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               <span className="text-[10px] font-brand uppercase tracking-wider text-champagne block font-semibold">
                 Atelier AI Live Camera
               </span>
-              <h3 className="font-editorial text-xl font-bold uppercase tracking-tight">{title}</h3>
+              <h3 className="font-editorial text-lg sm:text-xl font-bold uppercase tracking-tight">{title}</h3>
             </div>
           </div>
           <button
@@ -356,8 +356,21 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           </button>
         </div>
 
-        {/* Viewport / Live Feed / Review / Error Screen */}
-        <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-charcoal border border-champagne/30 shadow-inner flex items-center justify-center">
+        {/* Clear Full-Body Instructions Banner */}
+        <div className="bg-plum/90 border border-champagne/30 rounded-xl px-3.5 py-2.5 flex items-start gap-2.5 text-xs shadow-md">
+          <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
+          <div className="space-y-0.5 text-[11px] leading-snug text-ivory/90">
+            <span className="text-champagne font-semibold font-brand uppercase tracking-wider block">
+              Full-Body Fit Guidance:
+            </span>
+            <span>
+              Stand <strong>6–8 feet back</strong> with your phone or camera upright so your <strong>head, shoulders, and feet</strong> are all completely visible before capturing.
+            </span>
+          </div>
+        </div>
+
+        {/* Viewport / Live Feed / Review / Error Screen - object-contain ensures ZERO cropping of head or feet */}
+        <div className="relative w-full h-[52vh] min-h-[380px] max-h-[540px] rounded-2xl overflow-hidden bg-black border border-champagne/30 shadow-inner flex items-center justify-center">
           {/* STATE 1: Error Screen */}
           {status === 'error' && (
             <div className="p-6 text-center space-y-4 max-w-sm">
@@ -390,17 +403,20 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             </div>
           )}
 
-          {/* STATE 2: Captured Snapshot Review */}
+          {/* STATE 2: Captured Snapshot Review - uncropped full image preview with object-contain */}
           {status === 'captured' && capturedPhoto && (
-            <div className="relative w-full h-full">
+            <div className="relative w-full h-full flex items-center justify-center bg-black">
               <img
                 src={capturedPhoto}
                 alt="Captured Portrait"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute top-3 left-3 bg-plum-dark/90 px-3 py-1 rounded-full border border-champagne/30 text-[10px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1.5 shadow-md">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>Snapshot Captured</span>
+                <span>Full-Frame Uncropped Preview</span>
+              </div>
+              <div className="absolute bottom-3 inset-x-4 bg-plum-dark/90 backdrop-blur-sm border border-champagne/30 rounded-xl px-3 py-1.5 text-center text-[10px] text-ivory/90 font-light pointer-events-none">
+                Verify your head and full body length are complete before confirming.
               </div>
             </div>
           )}
@@ -414,7 +430,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               <div className="space-y-1">
                 <h4 className="text-sm font-editorial uppercase font-bold text-ivory">Webcam Ready</h4>
                 <p className="text-xs text-ivory/70 leading-relaxed">
-                  Click <strong>Start Camera</strong> to connect your live video feed and take a portrait.
+                  Click <strong>Start Camera</strong> to connect your live video feed and take a full-body portrait.
                 </p>
               </div>
               <div className="flex flex-col gap-2 pt-2 w-full">
@@ -456,13 +472,13 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 </div>
               )}
 
-              {/* HTML5 Video Element */}
+              {/* HTML5 Video Element with object-contain to PRESERVE full camera frame without cropping */}
               <video
                 ref={handleVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover ${facingMode === 'user' ? '-scale-x-100' : ''}`}
+                className={`w-full h-full object-contain ${facingMode === 'user' ? '-scale-x-100' : ''}`}
               />
 
               {/* Live Badge */}
@@ -476,11 +492,34 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 )}
               </div>
 
-              {/* Portrait Framing Guide Oval */}
-              <div className="absolute inset-x-10 inset-y-12 border-2 border-dashed border-champagne/50 rounded-full pointer-events-none flex items-center justify-center">
-                <span className="text-[9px] uppercase tracking-widest text-champagne font-brand bg-plum-dark/90 px-2.5 py-0.5 rounded-full -mt-28 border border-champagne/30 shadow-md">
-                  Center Face & Shoulders Here
-                </span>
+              {/* Full-Body Portrait Framing Guide (with generous clearance for head and feet) */}
+              <div className="absolute inset-3 sm:inset-5 border-2 border-dashed border-champagne/40 rounded-2xl pointer-events-none flex flex-col justify-between items-center p-3 select-none">
+                {/* Top: Headroom clearance & face guide */}
+                <div className="w-full flex flex-col items-center gap-1">
+                  <span className="text-[9px] uppercase tracking-wider text-champagne font-brand bg-plum-dark/90 px-2.5 py-0.5 rounded-full border border-champagne/30 shadow-md">
+                    ↑ Headroom • Keep top of head below line
+                  </span>
+                  <div className="w-20 h-24 rounded-full border border-dashed border-champagne/50 flex items-center justify-center bg-plum/20">
+                    <span className="text-[8px] uppercase tracking-wider text-champagne-light/80 font-brand">Face Zone</span>
+                  </div>
+                </div>
+
+                {/* Center: Torso & Garment Silhouette */}
+                <div className="w-44 sm:w-52 py-1.5 border-y border-dashed border-champagne/30 flex items-center justify-center bg-plum/10 rounded">
+                  <span className="text-[8px] uppercase tracking-wider text-champagne/80 font-brand text-center">
+                    Torso & Garment Drape
+                  </span>
+                </div>
+
+                {/* Bottom: Hemline & Feet clearance */}
+                <div className="w-full flex flex-col items-center gap-1">
+                  <div className="w-48 h-6 border-b-2 border-dashed border-champagne/60 flex items-center justify-center bg-plum/20">
+                    <span className="text-[8px] uppercase tracking-wider text-champagne-light/80 font-brand">Full Skirt & Shoes</span>
+                  </div>
+                  <span className="text-[9px] uppercase tracking-wider text-champagne font-brand bg-plum-dark/90 px-2.5 py-0.5 rounded-full border border-champagne/30 shadow-md">
+                    ↓ Ground • Keep feet visible above line
+                  </span>
+                </div>
               </div>
 
               {/* Camera Flip button */}

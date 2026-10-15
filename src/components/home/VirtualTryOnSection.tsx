@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { ImageWithFallback } from '../common/ImageWithFallback';
 import { CameraModal } from '../common/CameraModal';
-import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter, Eye, Maximize2, Split } from 'lucide-react';
+import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter, Eye, Maximize2, Split, AlertCircle } from 'lucide-react';
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
 
@@ -175,18 +175,27 @@ export const VirtualTryOnSection: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraCaptureInputRef = useRef<HTMLInputElement>(null);
   const bodyFileInputRef = useRef<HTMLInputElement>(null);
+  const [framingNotice, setFramingNotice] = useState<string | null>(null);
 
-  // Helper to detect whether image is a portrait/bust photo or full-body photo
+  // Helper to detect image framing, completeness, and orientation
   const detectPhotoFraming = (dataUrl: string) => {
     const img = new Image();
     img.onload = () => {
-      const ratio = img.naturalHeight / img.naturalWidth;
-      // Full-body photos typically have height/width >= 1.35
-      if (ratio >= 1.35) {
-        setPhotoType('fullbody');
+      const w = img.naturalWidth || 640;
+      const h = img.naturalHeight || 480;
+      const ratio = h / w;
+
+      // Validate resolution & completeness
+      if (w < 256 || h < 256) {
+        setFramingNotice('Image resolution is very low (< 256px). Please retake or upload a higher resolution photo for authentic fitting.');
+      } else if (ratio < 0.6) {
+        setFramingNotice('Wide landscape frame detected. If your head, face, or feet are cropped off, please retake with camera upright for full-body fitting.');
       } else {
-        setPhotoType('portrait');
+        setFramingNotice(null);
       }
+
+      // Default to fullbody fitting mode so customerPhoto is used as complete avatar
+      setPhotoType('fullbody');
     };
     img.src = dataUrl;
   };
@@ -242,6 +251,7 @@ export const VirtualTryOnSection: React.FC = () => {
     setCustomerPhoto(null);
     setCustomerBodyPhoto(null);
     setPhotoType('unknown');
+    setFramingNotice(null);
     setSelectedSample(sampleModels[0].img);
     setRenderedResultUrl(null);
     setPersonalizedTryOnUrl(null);
@@ -434,74 +444,99 @@ export const VirtualTryOnSection: React.FC = () => {
                   )}
                 </div>
 
-                {/* If Customer Uploaded Photo, show Preview Card */}
+                {/* If Customer Uploaded Photo, show Preview Card with object-contain to PRESERVE full frame */}
                 {customerPhoto ? (
                   <div className="space-y-3 mb-4">
-                    <div className="relative rounded-xl overflow-hidden aspect-[4/3] border border-champagne/40 bg-charcoal">
+                    <div className="relative rounded-2xl overflow-hidden min-h-[260px] max-h-[380px] aspect-[3/4] sm:aspect-[9/16] max-w-[280px] mx-auto border border-champagne/40 bg-charcoal/95 flex items-center justify-center p-1.5 shadow-inner">
                       <img
                         src={customerPhoto}
                         alt="Your Uploaded Portrait"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain rounded-xl"
                       />
-                      <div className="absolute top-2 left-2 bg-plum-dark/90 px-2.5 py-0.5 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1">
-                        <span>{photoType === 'fullbody' ? 'Full-Body Portrait Detected ✓' : 'Face / Bust Portrait ✓'}</span>
+                      <div className="absolute top-2 left-2 bg-plum-dark/95 backdrop-blur-sm px-2.5 py-0.5 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1 shadow-md">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>Full-Frame (Uncropped)</span>
                       </div>
-                      <div className="absolute bottom-2 inset-x-2 flex gap-2">
+                      <div className="absolute bottom-2 inset-x-2 flex gap-1.5">
                         <button
+                          type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex-1 bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors"
+                          className="flex-1 bg-plum-dark/95 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors font-medium backdrop-blur-sm shadow-md"
                         >
-                          Change Photo
+                          Upload New
                         </button>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('[VirtualTryOn] Start Camera clicked');
+                            console.log('[VirtualTryOn] Retake Camera clicked');
                             setIsCameraOpen(true);
                           }}
-                          className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-[10px]"
-                          title="Start Camera to capture live portrait"
+                          className="flex-1 bg-plum-dark/95 hover:bg-burgundy text-champagne border border-champagne/30 px-2 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 text-[10px] font-medium backdrop-blur-sm shadow-md"
+                          title="Retake Full-Body Portrait"
                         >
-                          <Camera className="w-3.5 h-3.5 text-champagne" />
-                          <span>Start Camera</span>
+                          <RotateCw className="w-3 h-3 text-champagne" />
+                          <span>Retake</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Educational Guidance Notice when Portrait/Bust is uploaded */}
-                    {photoType === 'portrait' && (
-                      <div className="bg-plum-dark/90 border border-champagne/25 rounded-xl p-3 text-[11px] text-ivory/80 space-y-2 font-light">
+                    {/* Framing Check & Incomplete Photo Advisory Notice */}
+                    {framingNotice && (
+                      <div className="bg-burgundy/40 border border-champagne/30 rounded-xl p-3 text-[11px] text-ivory/90 space-y-2 font-light">
                         <div className="flex items-start gap-2">
-                          <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
-                          <p className="leading-snug">
-                            <strong className="text-champagne font-normal">Tip for Full-Body Fitting:</strong> A portrait photo will drape the upper bodice. For a complete head-to-toe lehenga fit with full skirt flare, you can optionally attach a full-body reference photo below!
-                          </p>
-                        </div>
-
-                        {/* Separate Full-Body Reference Photo Upload */}
-                        {customerBodyPhoto ? (
-                          <div className="flex items-center justify-between bg-plum/60 p-2 rounded-lg border border-champagne/20 text-[10px]">
-                            <span className="text-champagne truncate">Full-Body Reference Attached ✓</span>
-                            <button
-                              onClick={() => setCustomerBodyPhoto(null)}
-                              className="text-rose hover:underline"
-                            >
-                              Remove
-                            </button>
+                          <AlertCircle className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="font-semibold text-champagne font-brand uppercase tracking-wider text-[10px]">Framing Advisory:</p>
+                            <p className="leading-snug text-ivory/80">{framingNotice}</p>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => bodyFileInputRef.current?.click()}
-                            className="w-full bg-burgundy/60 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                          >
-                            <Upload className="w-3 h-3 text-champagne" />
-                            <span>Add Full-Body Reference Photo</span>
-                          </button>
-                        )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsCameraOpen(true);
+                          }}
+                          className="w-full bg-champagne hover:bg-champagne-light text-plum font-bold text-[10px] uppercase tracking-wider py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-gold-subtle"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>Retake with Full-Body Guide</span>
+                        </button>
                       </div>
                     )}
+
+                    {/* Educational Guidance Notice when Reference Photo is uploaded */}
+                    <div className="bg-plum-dark/90 border border-champagne/25 rounded-xl p-3 text-[11px] text-ivory/80 space-y-2 font-light">
+                      <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
+                        <p className="leading-snug">
+                          <strong className="text-champagne font-normal">Full-Body Fitting Active:</strong> Your complete portrait will be used for head-to-toe drape synthesis. You can optionally attach an additional reference photo below!
+                        </p>
+                      </div>
+
+                      {/* Optional Separate Full-Body Reference Photo Upload */}
+                      {customerBodyPhoto ? (
+                        <div className="flex items-center justify-between bg-plum/60 p-2 rounded-lg border border-champagne/20 text-[10px]">
+                          <span className="text-champagne truncate">Additional Reference Attached ✓</span>
+                          <button
+                            onClick={() => setCustomerBodyPhoto(null)}
+                            className="text-rose hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => bodyFileInputRef.current?.click()}
+                          className="w-full bg-burgundy/60 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <Upload className="w-3 h-3 text-champagne" />
+                          <span>Add Optional Reference Photo</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -587,6 +622,9 @@ export const VirtualTryOnSection: React.FC = () => {
                     <option value="Athletic / Straight">Athletic / Straight</option>
                     <option value="Plus Size / Royal Flare">Plus Size / Royal Flare</option>
                   </select>
+                  <p className="text-[9px] text-ivory/50 mt-1.5 font-light">
+                    Calibrates 3D garment drape & proportions without altering or cropping your face portrait.
+                  </p>
                 </div>
 
                 <input

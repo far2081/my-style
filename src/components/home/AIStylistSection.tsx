@@ -364,10 +364,10 @@ export const AIStylistSection: React.FC = () => {
 
                   {/* If user uploaded their photo, show inset badge */}
                   {customerPhoto && (
-                    <div className="absolute bottom-3 right-3 w-20 h-20 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal">
-                      <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-cover" />
+                    <div className="absolute bottom-3 right-3 w-20 h-20 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal flex items-center justify-center p-0.5">
+                      <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-contain" />
                       <div className="absolute inset-x-0 bottom-0 bg-plum-dark/90 text-center py-0.5 text-[8px] font-brand uppercase text-champagne">
-                        Your Portrait
+                        Your Photo
                       </div>
                     </div>
                   )}
@@ -469,8 +469,8 @@ export const AIStylistSection: React.FC = () => {
                 />
 
                 {customerPhoto ? (
-                  <div className="relative rounded-lg overflow-hidden aspect-[4/3] border border-champagne/30 bg-charcoal">
-                    <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-cover" />
+                  <div className="relative rounded-xl overflow-hidden min-h-[160px] max-h-[220px] aspect-[3/4] max-w-[200px] mx-auto border border-champagne/30 bg-charcoal/95 flex items-center justify-center p-1">
+                    <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-contain rounded" />
                     <div className="absolute bottom-2 inset-x-2 flex gap-1.5">
                       <button
                         type="button"

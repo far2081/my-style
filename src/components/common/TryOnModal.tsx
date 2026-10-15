@@ -183,7 +183,7 @@ export const TryOnModal: React.FC = () => {
               src={currentImage}
               alt={dress.name}
               aspectRatio="aspect-full"
-              className="w-full h-full object-cover transition-opacity duration-300 pointer-events-none"
+              className="w-full h-full object-contain transition-opacity duration-300 pointer-events-none"
             />
           </div>
 
