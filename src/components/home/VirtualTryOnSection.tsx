@@ -6,6 +6,7 @@ import { CameraModal } from '../common/CameraModal';
 import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter, Eye, Maximize2, Split, AlertCircle } from 'lucide-react';
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
+import { normalizeTo3x4Portrait } from '../../utils/imageNormalization';
 
 type GarmentViewAngle = 'front' | 'left' | 'right' | 'back';
 
@@ -204,11 +205,11 @@ export const VirtualTryOnSection: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         if (typeof reader.result === 'string') {
-          const res = reader.result;
-          setCustomerPhoto(res);
-          detectPhotoFraming(res);
+          const normalized = await normalizeTo3x4Portrait(reader.result);
+          setCustomerPhoto(normalized);
+          detectPhotoFraming(normalized);
           setSelectedSample('');
           setRenderedResultUrl(null);
           setPersonalizedTryOnUrl(null);
@@ -224,9 +225,10 @@ export const VirtualTryOnSection: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         if (typeof reader.result === 'string') {
-          setCustomerBodyPhoto(reader.result);
+          const normalized = await normalizeTo3x4Portrait(reader.result);
+          setCustomerBodyPhoto(normalized);
           setRenderedResultUrl(null);
           setPersonalizedTryOnUrl(null);
           setPersonalizedTryOnProductId(null);
@@ -305,13 +307,22 @@ export const VirtualTryOnSection: React.FC = () => {
       }
     }
 
+    // Normalize customer image to clean 768x1024 (3:4 portrait) canvas so person and 3:4 dress share identical proportions
+    const normalizedAvatar = await normalizeTo3x4Portrait(photoToUse);
+
     const res = await aiProviders.tryon.generateTryOn({
-      customerPhotoUrl: photoToUse,
+      customerPhotoUrl: normalizedAvatar,
       customerFaceUrl: customerPhoto || undefined,
-      customerBodyUrl: customerBodyPhoto || (photoType === 'fullbody' ? photoToUse : undefined),
+      customerBodyUrl: customerBodyPhoto || (photoType === 'fullbody' ? normalizedAvatar : undefined),
       bodyStructure: customerBodyStructure,
       garmentImageUrl: currentDress.images.front,
       productId: currentDress.id,
+      productName: currentDress.name,
+      dressType: currentDress.dressType,
+      category: currentDress.category,
+      color: currentDress.color,
+      fabric: currentDress.fabric,
+      description: currentDress.description,
       perspectiveAngle: 'Front',
     });
 

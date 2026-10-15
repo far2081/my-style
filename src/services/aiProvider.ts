@@ -323,6 +323,12 @@ export interface TryOnRequest {
   bodyStructure?: string;
   garmentImageUrl: string;
   productId: string;
+  productName?: string;
+  dressType?: string;
+  category?: string;
+  color?: string;
+  fabric?: string;
+  description?: string;
   perspectiveAngle?: 'Front' | 'Side' | 'Back';
 }
 
@@ -378,6 +384,12 @@ export class ReplicateVTONProvider implements TryOnProvider {
           body_structure: req.bodyStructure,
           clothing_image_url: req.garmentImageUrl,
           productId: req.productId,
+          product_name: req.productName,
+          dress_type: req.dressType,
+          category: req.category,
+          color: req.color,
+          fabric: req.fabric,
+          description: req.description,
         }),
       });
 

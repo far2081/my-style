@@ -127,6 +127,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     clothing_image_url,
     productId,
     userId,
+    product_name,
+    dress_type,
+    category,
+    color,
+    fabric,
+    description,
   } = req.body as {
     avatar_image_url?: string;
     face_image_url?: string;
@@ -135,10 +141,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     clothing_image_url?: string;
     productId?: string;
     userId?: string;
+    product_name?: string;
+    dress_type?: string;
+    category?: string;
+    color?: string;
+    fabric?: string;
+    description?: string;
   };
 
   // If customer uploaded both a face portrait and a full-body photo, choose full body as garment avatar
   const primaryAvatarUrl = body_image_url && body_image_url.trim() ? body_image_url : avatar_image_url;
+
+  const cleanName = (product_name || '').trim();
+  const cleanType = (dress_type || category || 'formal dress').trim();
+  const cleanColor = (color || '').trim();
+  const cleanFabric = (fabric || '').trim();
+  const cleanDesc = (description || '').slice(0, 150).trim();
+
+  // Rich prompt conditioning so Texel.Moda Try-On Diffusion guides full-length garment draping
+  // across bodice, waist, hips, and flared skirt instead of clipping to neckline
+  const clothingPrompt = [
+    `an authentic full-length Pakistani ${cleanType}`,
+    cleanName ? `StyleMira ${cleanName}` : '',
+    cleanColor ? `${cleanColor} color` : '',
+    cleanFabric ? `${cleanFabric} fabric` : '',
+    'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt down to the hemline',
+    body_structure ? `tailored for a ${body_structure} silhouette` : '',
+    cleanDesc ? cleanDesc : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const avatarPrompt = 'a full-body portrait of a woman standing front-facing, head and feet clearly visible, natural posture';
+  const avatarSex = 'female';
+  const garmentCategory = 'dresses';
 
   // Stage 1 Diagnostic: Portrait, Body, Structure, and Garment Received
   const isBase64Avatar = Boolean(primaryAvatarUrl && primaryAvatarUrl.startsWith('data:image/'));
@@ -152,6 +188,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     hasClothing: Boolean(clothing_image_url && clothing_image_url.trim()),
     clothingUrlPreview: clothing_image_url ? clothing_image_url.slice(0, 60) + '...' : 'none',
     productId: productId || 'unspecified',
+    clothingPrompt,
+    avatarPrompt,
+    avatarSex,
+    category: garmentCategory,
   });
 
   if (!primaryAvatarUrl || !primaryAvatarUrl.trim()) {
@@ -225,8 +265,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const fileFormData = new FormData();
       fileFormData.append('avatar_image', new Blob([avatarBuffer], { type: avatarMime }), `avatar.${ext}`);
       fileFormData.append('clothing_image', new Blob([clothingBuffer], { type: clothingMime }), 'garment.jpg');
+      fileFormData.append('clothing_prompt', clothingPrompt);
+      fileFormData.append('avatar_prompt', avatarPrompt);
+      fileFormData.append('avatar_sex', avatarSex);
+      fileFormData.append('category', garmentCategory);
 
-      console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-file]');
+      console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-file]', {
+        clothingPrompt,
+        avatarPrompt,
+        avatarSex,
+        category: garmentCategory,
+      });
       rapidResponse = await fetch(VTON_FILE_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -248,8 +297,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const urlFormData = new FormData();
       urlFormData.append('avatar_image_url', accessibleAvatarUrl);
       urlFormData.append('clothing_image_url', accessibleClothingUrl);
+      urlFormData.append('clothing_prompt', clothingPrompt);
+      urlFormData.append('avatar_prompt', avatarPrompt);
+      urlFormData.append('avatar_sex', avatarSex);
+      urlFormData.append('category', garmentCategory);
 
-      console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-url]');
+      console.log('[VTON Diagnostic Stage 5 - Calling Try-On Diffusion /try-on-url]', {
+        clothingPrompt,
+        avatarPrompt,
+        avatarSex,
+        category: garmentCategory,
+      });
       rapidResponse = await fetch(VTON_URL_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -274,6 +332,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             body: JSON.stringify({
               avatar_image_url: accessibleAvatarUrl,
               clothing_image_url: accessibleClothingUrl,
+              clothing_prompt: clothingPrompt,
+              avatar_prompt: avatarPrompt,
+              avatar_sex: avatarSex,
+              category: garmentCategory,
             }),
           });
         }

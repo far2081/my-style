@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, X, RotateCw, Check, AlertCircle, Upload, VideoOff, CheckCircle2, Info } from 'lucide-react';
+import { normalizeTo3x4Portrait } from '../../utils/imageNormalization';
 
 interface CameraModalProps {
   isOpen: boolean;
@@ -223,7 +224,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     }
   };
 
-  // Capture snapshot from live video
+  // Capture snapshot from live video in calibrated 768x1024 (3:4 portrait) coordinates
   const handleCapture = () => {
     console.log('[CameraModal] handleCapture triggered.');
     const video = videoRef.current;
@@ -232,26 +233,53 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       return;
     }
 
-    const width = video.videoWidth || 640;
-    const height = video.videoHeight || 640;
+    const vWidth = video.videoWidth || 640;
+    const vHeight = video.videoHeight || 480;
+
+    // Standard recommended resolution for Texel.Moda Try-On Diffusion is 768 x 1024 (3:4 portrait)
+    const TARGET_WIDTH = 768;
+    const TARGET_HEIGHT = 1024;
+    const TARGET_RATIO = TARGET_WIDTH / TARGET_HEIGHT; // 0.75
+
+    const videoRatio = vWidth / vHeight;
+
+    let sx = 0;
+    let sy = 0;
+    let sWidth = vWidth;
+    let sHeight = vHeight;
+
+    if (videoRatio > TARGET_RATIO) {
+      // Landscape or wide stream (e.g. 16:9 or 4:3 webcam)
+      // Crop central 3:4 region matching the on-screen framing guide so user in center is framed head-to-toe
+      sWidth = Math.round(vHeight * TARGET_RATIO);
+      sx = Math.round((vWidth - sWidth) / 2);
+    } else if (videoRatio < TARGET_RATIO) {
+      // Taller stream than 3:4
+      sHeight = Math.round(vWidth / TARGET_RATIO);
+      sy = Math.round((vHeight - sHeight) / 2);
+    }
 
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = TARGET_WIDTH;
+    canvas.height = TARGET_HEIGHT;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Fill background with neutral tone before drawing
+    ctx.fillStyle = '#1A1118';
+    ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+
     // Mirror horizontally for front-facing user camera (natural portrait mirror)
     if (facingMode === 'user') {
-      ctx.translate(width, 0);
+      ctx.translate(TARGET_WIDTH, 0);
       ctx.scale(-1, 1);
     }
 
-    ctx.drawImage(video, 0, 0, width, height);
+    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
-    console.log('[CameraModal] Snapshot captured, image length:', dataUrl.length);
+    console.log('[CameraModal] Snapshot captured in 768x1024 (3:4), length:', dataUrl.length);
     setCapturedPhoto(dataUrl);
     setStatus('captured');
 
@@ -285,15 +313,16 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     onClose();
   };
 
-  // File fallback upload
+  // File fallback upload (normalized to 3:4 portrait)
   const handleFileFallback = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       console.log('[CameraModal] File selected via fallback upload:', file.name);
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         if (typeof reader.result === 'string') {
-          onCapture(reader.result);
+          const normalized = await normalizeTo3x4Portrait(reader.result);
+          onCapture(normalized);
           handleClose();
         }
       };
