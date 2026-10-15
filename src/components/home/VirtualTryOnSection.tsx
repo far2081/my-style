@@ -455,7 +455,12 @@ export const VirtualTryOnSection: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setIsCameraOpen(true)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('[VirtualTryOn] Start Camera clicked');
+                            setIsCameraOpen(true);
+                          }}
                           className="bg-plum-dark/90 hover:bg-burgundy text-champagne border border-champagne/30 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-[10px]"
                           title="Start Camera to capture live portrait"
                         >
@@ -512,7 +517,12 @@ export const VirtualTryOnSection: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsCameraOpen(true)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('[VirtualTryOn] Start Camera clicked');
+                          setIsCameraOpen(true);
+                        }}
                         className="bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs transition-colors"
                       >
                         <Camera className="w-4 h-4" />

@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, X, RotateCw, Check, AlertCircle, Upload, ShieldAlert, VideoOff } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Camera, X, RotateCw, Check, AlertCircle, Upload, VideoOff, CheckCircle2 } from 'lucide-react';
 
 interface CameraModalProps {
   isOpen: boolean;
@@ -19,20 +20,23 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileFallbackRef = useRef<HTMLInputElement>(null);
+  const mountTimeRef = useRef<number>(0);
 
   const [status, setStatus] = useState<CameraStatus>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [streamResolution, setStreamResolution] = useState<{ width: number; height: number } | null>(null);
 
   // Stop all active tracks and release camera hardware
   const stopCamera = useCallback(() => {
+    console.log('[CameraModal] Stopping camera stream & releasing hardware...');
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         try {
           track.stop();
         } catch (e) {
-          console.warn('Error stopping media track:', e);
+          console.warn('[CameraModal] Error stopping media track:', e);
         }
       });
       streamRef.current = null;
@@ -40,36 +44,53 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setStreamResolution(null);
   }, []);
 
-  // Safely attach stream to video element
+  // Safely attach stream to video element without triggering double-load AbortError
   const attachStreamToVideo = useCallback((videoElement: HTMLVideoElement | null, stream: MediaStream | null) => {
     if (!videoElement || !stream) return;
     try {
-      videoElement.srcObject = stream;
-      videoElement.muted = true;
-      videoElement.playsInline = true;
-      videoElement.setAttribute('playsinline', 'true');
-      videoElement.setAttribute('muted', 'true');
-      videoElement.play().catch((playErr) => {
-        // Some browsers defer playback until interaction; this is safe to catch
-        console.warn('Live camera play deferral:', playErr);
-      });
+      if (videoElement.srcObject !== stream) {
+        console.log('[CameraModal] Attaching MediaStream to video element...');
+        videoElement.srcObject = stream;
+        videoElement.muted = true;
+        videoElement.playsInline = true;
+        videoElement.setAttribute('playsinline', 'true');
+        videoElement.setAttribute('muted', 'true');
+        
+        videoElement.onloadedmetadata = () => {
+          console.log('[CameraModal] Video metadata loaded:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+          setStreamResolution({
+            width: videoElement.videoWidth,
+            height: videoElement.videoHeight,
+          });
+          videoElement.play().catch((playErr) => {
+            console.warn('[CameraModal] Autoplay deferral caught:', playErr);
+          });
+        };
+
+        videoElement.play().catch((playErr) => {
+          console.warn('[CameraModal] Initial video.play caught:', playErr);
+        });
+      }
     } catch (err) {
-      console.warn('Error setting video srcObject:', err);
+      console.warn('[CameraModal] Error assigning srcObject:', err);
     }
   }, []);
 
-  // Ref callback to immediately attach stream when video mounts
+  // Ref callback to immediately attach stream when video mounts in DOM
   const handleVideoRef = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element;
-    if (element && streamRef.current && status === 'streaming') {
+    if (element && streamRef.current && (status === 'streaming' || status === 'starting')) {
       attachStreamToVideo(element, streamRef.current);
     }
   }, [status, attachStreamToVideo]);
 
   // Start webcam stream
   const startCamera = async (mode: 'user' | 'environment' = facingMode) => {
+    console.log('[CameraModal] startCamera invoked with mode:', mode);
+    
     // 1. Verify Secure Context (HTTPS or localhost required by modern browsers)
     if (
       typeof window !== 'undefined' &&
@@ -77,6 +98,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       window.location.hostname !== 'localhost' &&
       window.location.hostname !== '127.0.0.1'
     ) {
+      console.warn('[CameraModal] Non-secure context detected (HTTPS required).');
       setStatus('error');
       setErrorMsg(
         'Webcam access requires a secure connection (HTTPS). Please access the site via HTTPS, or upload a photo directly from your device.'
@@ -90,9 +112,10 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       !navigator.mediaDevices ||
       typeof navigator.mediaDevices.getUserMedia !== 'function'
     ) {
+      console.warn('[CameraModal] navigator.mediaDevices.getUserMedia is unavailable.');
       setStatus('error');
       setErrorMsg(
-        'Camera access is not supported by your browser. Please use the Upload Photo option below.'
+        'Camera access is not supported by your browser or platform. Please use the Upload Photo option below.'
       );
       return;
     }
@@ -106,9 +129,10 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
     try {
       let stream: MediaStream;
+      console.log('[CameraModal] Requesting mediaDevices.getUserMedia...');
 
       try {
-        // Try high-resolution square/portrait mode first
+        // Primary request: High-resolution portrait feed
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: mode,
@@ -117,31 +141,34 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           },
           audio: false,
         });
+        console.log('[CameraModal] Primary getUserMedia succeeded.');
       } catch (constraintErr) {
-        // Fallback: simple facingMode
+        console.warn('[CameraModal] Ideal constraints failed, trying facingMode fallback:', constraintErr);
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: mode },
             audio: false,
           });
+          console.log('[CameraModal] facingMode fallback succeeded.');
         } catch (modeErr) {
-          // Last resort: basic video without constraints
+          console.warn('[CameraModal] facingMode failed, trying basic video: true:', modeErr);
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false,
           });
+          console.log('[CameraModal] basic video: true succeeded.');
         }
       }
 
       streamRef.current = stream;
       setStatus('streaming');
 
-      // Attach stream to video element if already rendered
+      // Attach to video element if already rendered
       if (videoRef.current) {
         attachStreamToVideo(videoRef.current, stream);
       }
     } catch (err: any) {
-      console.warn('Camera stream request failed:', err);
+      console.error('[CameraModal] Camera getUserMedia error:', err);
       stopCamera();
       setStatus('error');
 
@@ -150,7 +177,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
       if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
         message =
-          'Camera permission was denied. Please allow camera permissions in your browser address bar (click the lock or camera icon), or upload a photo directly.';
+          'Camera permission was denied. Please allow camera access in your browser address bar (click the lock or camera icon), or upload a photo directly.';
       } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
         message = 'No camera device found on this system. You can upload a photo from your device below.';
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
@@ -171,7 +198,9 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   // Lifecycle when modal is opened / closed
   useEffect(() => {
     if (isOpen) {
-      // Auto-initiate camera when modal opens
+      mountTimeRef.current = Date.now();
+      console.log('[CameraModal] Modal opened at timestamp:', mountTimeRef.current);
+      // Auto-initiate camera stream
       startCamera(facingMode);
     } else {
       stopCamera();
@@ -196,8 +225,12 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
   // Capture snapshot from live video
   const handleCapture = () => {
+    console.log('[CameraModal] handleCapture triggered.');
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) {
+      console.warn('[CameraModal] Cannot capture: video element is null.');
+      return;
+    }
 
     const width = video.videoWidth || 640;
     const height = video.videoHeight || 640;
@@ -209,7 +242,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Mirror image horizontally if front-facing user camera for natural portrait mirror
+    // Mirror horizontally for front-facing user camera (natural portrait mirror)
     if (facingMode === 'user') {
       ctx.translate(width, 0);
       ctx.scale(-1, 1);
@@ -218,21 +251,24 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     ctx.drawImage(video, 0, 0, width, height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
+    console.log('[CameraModal] Snapshot captured, image length:', dataUrl.length);
     setCapturedPhoto(dataUrl);
     setStatus('captured');
 
-    // Turn off camera tracks to save battery and release hardware while confirming
+    // Turn off camera tracks while reviewing snapshot
     stopCamera();
   };
 
   // Retake photo: discard snapshot and restart camera
   const handleRetake = () => {
+    console.log('[CameraModal] handleRetake triggered.');
     setCapturedPhoto(null);
     startCamera(facingMode);
   };
 
   // Confirm photo and send to parent workflow
   const handleConfirm = () => {
+    console.log('[CameraModal] handleConfirm triggered.');
     if (capturedPhoto) {
       onCapture(capturedPhoto);
       handleClose();
@@ -241,6 +277,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
   // Safe close handler that stops tracks
   const handleClose = () => {
+    console.log('[CameraModal] handleClose triggered.');
     stopCamera();
     setStatus('idle');
     setCapturedPhoto(null);
@@ -252,6 +289,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const handleFileFallback = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      console.log('[CameraModal] File selected via fallback upload:', file.name);
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
@@ -265,14 +303,22 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fadeIn">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-charcoal/90 backdrop-blur-md"
-        onClick={handleClose}
-      />
-
+  // Use createPortal to mount directly into document.body, ensuring no parent overflow or stacking context traps the modal
+  return createPortal(
+    <div
+      id="camera-modal-portal"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/85 backdrop-blur-md animate-fadeIn"
+      onClick={(e) => {
+        // Guard: Prevent the click that opened the modal from immediately closing it
+        if (Date.now() - mountTimeRef.current < 400) {
+          return;
+        }
+        // Only close if user clicked directly on the dark backdrop, not on the modal card
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
       {/* Hidden File Fallback Input */}
       <input
         type="file"
@@ -283,7 +329,10 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       />
 
       {/* Modal Card */}
-      <div className="relative bg-plum-dark border border-champagne/40 rounded-3xl max-w-lg w-full shadow-2xl p-6 text-ivory z-10 space-y-5">
+      <div
+        className="relative bg-plum-dark border border-champagne/40 rounded-3xl max-w-lg w-full shadow-2xl p-6 text-ivory z-10 space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-champagne/20">
           <div className="flex items-center gap-2.5">
@@ -298,6 +347,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             className="p-2 text-ivory/70 hover:text-champagne transition-colors rounded-lg hover:bg-white/5"
             aria-label="Close"
@@ -419,6 +469,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               <div className="absolute top-3 left-3 bg-plum-dark/85 backdrop-blur-sm px-2.5 py-1 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1.5 shadow-md pointer-events-none">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>Live Feed</span>
+                {streamResolution && (
+                  <span className="text-ivory/50 text-[8px] font-mono ml-1">
+                    ({streamResolution.width}x{streamResolution.height})
+                  </span>
+                )}
               </div>
 
               {/* Portrait Framing Guide Oval */}
@@ -534,6 +589,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

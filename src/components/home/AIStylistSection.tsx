@@ -481,7 +481,12 @@ export const AIStylistSection: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsCameraOpen(true)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('[AIStylistSection] Camera clicked');
+                          setIsCameraOpen(true);
+                        }}
                         className="flex-1 bg-burgundy/90 hover:bg-burgundy text-champagne text-[10px] py-1 rounded border border-champagne/20"
                       >
                         Camera
@@ -500,7 +505,12 @@ export const AIStylistSection: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIsCameraOpen(true)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[AIStylistSection] Live Camera clicked');
+                        setIsCameraOpen(true);
+                      }}
                       className="flex-1 bg-burgundy/80 hover:bg-burgundy border border-champagne/30 rounded-lg p-2.5 text-center text-xs flex flex-col items-center justify-center gap-1 transition-colors text-ivory"
                     >
                       <Camera className="w-4 h-4 text-champagne" />

@@ -96,7 +96,13 @@ export const QuickStyleFinder: React.FC = () => {
 
           {/* Card 2: Camera -> Triggers Live Webcam Modal */}
           <button
-            onClick={() => setIsCameraOpen(true)}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('[QuickStyleFinder] Live Camera clicked');
+              setIsCameraOpen(true);
+            }}
             className={`p-4 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between h-36 group ${
               customerPhoto
                 ? 'bg-plum-light/80 border-champagne shadow-gold-subtle'
