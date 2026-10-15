@@ -5,6 +5,8 @@ import { EVENT_COLLECTIONS_DATA } from '../data/collections';
 import { BRIDAL_ITEMS_DATA } from '../data/bridalLooks';
 import { dbService } from '../services/dbService';
 import { authService } from '../services/authService';
+import { aiProviders } from '../services/aiProvider';
+import { normalizeTo3x4Portrait } from '../utils/imageNormalization';
 
 interface AppContextType {
   activeView: ViewMode;
@@ -88,6 +90,11 @@ interface AppContextType {
   setPersonalizedTryOnUrl: (url: string | null) => void;
   personalizedTryOnProductId: string | null;
   setPersonalizedTryOnProductId: (id: string | null) => void;
+  isTryOnGenerating: boolean;
+  tryOnError: string | null;
+  setTryOnError: (err: string | null) => void;
+  generateTryOnForProduct: (product: Product, personPhotoOverride?: string) => Promise<boolean>;
+  clearTryOnResult: () => void;
 }
 
 const getInitialView = (): ViewMode => {
@@ -248,11 +255,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [activeFilterOccasion, setActiveFilterOccasion] = useState<string | null>(null);
   const [activeFilterEvent, setActiveFilterEvent] = useState<string | null>(null);
-  const [customerPhoto, setCustomerPhoto] = useState<string | null>(null);
+  const [customerPhoto, setCustomerPhotoState] = useState<string | null>(null);
   const [customerBodyPhoto, setCustomerBodyPhoto] = useState<string | null>(null);
   const [customerBodyStructure, setCustomerBodyStructure] = useState<string>('Hourglass / Curated');
   const [personalizedTryOnUrl, setPersonalizedTryOnUrl] = useState<string | null>(null);
   const [personalizedTryOnProductId, setPersonalizedTryOnProductId] = useState<string | null>(null);
+  const [isTryOnGenerating, setIsTryOnGenerating] = useState<boolean>(false);
+  const [tryOnError, setTryOnError] = useState<string | null>(null);
+
+  const clearTryOnResult = () => {
+    setPersonalizedTryOnUrl(null);
+    setPersonalizedTryOnProductId(null);
+    setTryOnError(null);
+  };
+
+  const setCustomerPhoto = (photo: string | null) => {
+    setCustomerPhotoState(photo);
+    // Invalidate stale personalized try-on result whenever customer changes/clears photo
+    clearTryOnResult();
+  };
+
+  const generateTryOnForProduct = async (product: Product, personPhotoOverride?: string): Promise<boolean> => {
+    const rawPhoto = personPhotoOverride || customerPhoto;
+    if (!rawPhoto) {
+      setTryOnError('Please upload or capture your photo first before generating an AI Try-On.');
+      return false;
+    }
+
+    setIsTryOnGenerating(true);
+    setTryOnError(null);
+
+    try {
+      let photoToUse = rawPhoto;
+      if (photoToUse && !photoToUse.startsWith('data:image/')) {
+        try {
+          const response = await fetch(photoToUse);
+          const blob = await response.blob();
+          const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          photoToUse = base64Data;
+        } catch (err) {
+          console.warn('Could not convert photo to base64, passing URL as-is:', err);
+        }
+      }
+
+      const selectedGarmentImage =
+        product.images?.fullLook && product.images.fullLook.trim()
+          ? product.images.fullLook
+          : product.images.front;
+
+      // Normalize person image to 3:4 portrait canvas (768x1024) with vertical headroom and feet clearance
+      const normalizedAvatar = await normalizeTo3x4Portrait(photoToUse);
+
+      const res = await aiProviders.tryon.generateTryOn({
+        customerPhotoUrl: normalizedAvatar,
+        customerFaceUrl: photoToUse.startsWith('data:') ? photoToUse : undefined,
+        customerBodyUrl: customerBodyPhoto || normalizedAvatar,
+        bodyStructure: customerBodyStructure,
+        garmentImageUrl: selectedGarmentImage,
+        productId: product.id,
+        productName: product.name,
+        dressType: product.dressType,
+        category: product.category,
+        color: product.color,
+        fabric: product.fabric,
+        description: product.description,
+        perspectiveAngle: 'Front',
+      });
+
+      setIsTryOnGenerating(false);
+
+      if (res.status === 'failed' || !res.result?.renderedImageUrl) {
+        setTryOnError(res.error || 'Virtual Try-On generation failed. Please check provider connection.');
+        return false;
+      }
+
+      setPersonalizedTryOnUrl(res.result.renderedImageUrl);
+      setPersonalizedTryOnProductId(product.id);
+      return true;
+    } catch (e: any) {
+      setIsTryOnGenerating(false);
+      setTryOnError(e?.message || 'Error occurred during Virtual Try-On generation.');
+      return false;
+    }
+  };
 
   // Derived filtered subsets
   const newArrivals = useMemo(
@@ -661,6 +751,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPersonalizedTryOnUrl,
         personalizedTryOnProductId,
         setPersonalizedTryOnProductId,
+        isTryOnGenerating,
+        tryOnError,
+        setTryOnError,
+        generateTryOnForProduct,
+        clearTryOnResult,
       }}
     >
       {children}

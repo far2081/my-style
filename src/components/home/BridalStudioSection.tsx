@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getMatchingBridalSuite, getBridalThemeKey, BRIDAL_THEME_SETS } from '../../data/bridalLooks';
-import { Sparkles, Check, Crown, Diamond, Heart, ShoppingBag, ArrowRight, Palette, Shirt, RefreshCw } from 'lucide-react';
+import { Sparkles, Check, Crown, Diamond, Heart, ShoppingBag, ArrowRight, Palette, Shirt, RefreshCw, Camera, Upload, RotateCw, X, Eye } from 'lucide-react';
 import { BridalItem, Product } from '../../types';
+import { CameraModal } from '../common/CameraModal';
 
 export const BridalStudioSection: React.FC = () => {
   const {
@@ -13,7 +14,17 @@ export const BridalStudioSection: React.FC = () => {
     bridalLookTotal,
     isBridalOfferEligible,
     addToCart,
+    tryOnProduct,
     setTryOnProduct,
+    setSelectedProduct,
+    customerPhoto,
+    setCustomerPhoto,
+    personalizedTryOnUrl,
+    personalizedTryOnProductId,
+    isTryOnGenerating,
+    tryOnError,
+    generateTryOnForProduct,
+    setActiveView,
   } = useApp();
 
   // 1. Filter genuine bridal dresses from real catalog (Barat, Nikah, Valima, Bridal)
@@ -35,11 +46,33 @@ export const BridalStudioSection: React.FC = () => {
     return list.length > 0 ? list : products.slice(0, 15);
   }, [products]);
 
-  // 2. Active Dress selection
-  const [selectedDress, setSelectedDress] = useState<Product>(() => bridalDresses[0] || products[0]);
+  // 2. Active Dress selection - Synchronized with tryOnProduct if already chosen
+  const [selectedDress, setSelectedDress] = useState<Product>(() => {
+    if (tryOnProduct && bridalDresses.some((d) => d.id === tryOnProduct.id)) {
+      return tryOnProduct;
+    }
+    return bridalDresses[0] || products[0];
+  });
   const [activeTab, setActiveTab] = useState<string>('Bridal Dress');
   const [isSavedLook, setIsSavedLook] = useState(false);
   const [addedToCartNotification, setAddedToCartNotification] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'catalog' | 'tryon'>('tryon');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync if tryOnProduct changes from another section
+  useEffect(() => {
+    if (tryOnProduct && bridalDresses.some((d) => d.id === tryOnProduct.id) && selectedDress.id !== tryOnProduct.id) {
+      setSelectedDress(tryOnProduct);
+    }
+  }, [tryOnProduct, bridalDresses]);
+
+  // Sync previewMode to 'tryon' if a try-on exists for this dress
+  useEffect(() => {
+    if (personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id) {
+      setPreviewMode('tryon');
+    }
+  }, [personalizedTryOnUrl, personalizedTryOnProductId, selectedDress.id]);
 
   const categories = ['Bridal Dress', 'Makeup', 'Jewelry', 'Hair', 'Dupatta', 'Shoes', 'Accessories'] as const;
 
@@ -73,11 +106,34 @@ export const BridalStudioSection: React.FC = () => {
     return found || harmonizedSuite[0];
   }, [activeTab, selectedDress, harmonizedSuite]);
 
-  // Change selected dress and notify bride
+  // Change selected dress and keep global tryOnProduct synchronized
   const handleSelectDress = (dress: Product) => {
     setSelectedDress(dress);
+    setTryOnProduct(dress);
+    setSelectedProduct(dress);
     setIsSavedLook(false);
     setAddedToCartNotification(false);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setCustomerPhoto(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGenerateBridalTryOn = async () => {
+    if (!selectedDress) return;
+    setTryOnProduct(selectedDress);
+    const success = await generateTryOnForProduct(selectedDress);
+    if (success) {
+      setPreviewMode('tryon');
+    }
   };
 
   // Add the entire bridal ensemble (dress + accessories) to cart
@@ -94,9 +150,17 @@ export const BridalStudioSection: React.FC = () => {
       <div className="absolute top-0 right-1/3 w-96 h-96 bg-champagne/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-plum/50 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Bridal Camera Modal */}
+      <CameraModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={(photo) => setCustomerPhoto(photo)}
+        title="Bridal Atelier Portrait Scanner"
+      />
+
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
+        <div className="text-center max-w-3xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-burgundy text-champagne border border-champagne/40 text-[10px] font-brand uppercase tracking-[0.3em] mb-4 shadow-gold-subtle">
             <Crown className="w-3.5 h-3.5 text-champagne" />
             <span>The Royal Atelier Suite</span>
@@ -108,6 +172,137 @@ export const BridalStudioSection: React.FC = () => {
           <p className="text-sm sm:text-base text-ivory/80 max-w-2xl mx-auto leading-relaxed font-light">
             Every bridal element harmonized under one imperial vision. Select any bridal dress and all matching jewelry, makeup, hair styling, veil, khussa, and potli automatically recalibrate to match your exact dress palette.
           </p>
+        </div>
+
+        {/* Bride's Atelier Portrait & AI Try-On Integration Card */}
+        <div className="mb-10 bg-plum-dark/95 border border-champagne/35 rounded-2xl p-5 sm:p-6 shadow-luxury">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-5">
+            <div className="flex items-center gap-4">
+              {customerPhoto ? (
+                <div className="relative w-16 h-20 rounded-xl overflow-hidden border-2 border-champagne shadow-gold-subtle bg-charcoal shrink-0">
+                  <img src={customerPhoto} alt="Bride's Portrait" className="w-full h-full object-contain" />
+                  <div className="absolute inset-x-0 bottom-0 bg-plum-dark/95 text-[8px] font-brand uppercase text-champagne font-bold text-center py-0.5">
+                    Bride
+                  </div>
+                </div>
+              ) : (
+                <div className="w-16 h-20 rounded-xl border border-dashed border-champagne/40 bg-plum/40 flex flex-col items-center justify-center text-champagne/60 shrink-0">
+                  <Camera className="w-6 h-6 mb-1 text-champagne/70" />
+                  <span className="text-[8px] uppercase tracking-wider font-brand text-ivory/60">No Photo</span>
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-brand uppercase tracking-wider text-champagne font-bold">
+                    00. Bride's Portrait & Atelier Try-On
+                  </span>
+                  {customerPhoto ? (
+                    <span className="text-[9px] text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span>Portrait Connected ✓</span>
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-ivory/60 bg-plum/50 border border-champagne/20 px-2 py-0.5 rounded-full">
+                      Step 0: Add Portrait
+                    </span>
+                  )}
+                </div>
+                <h4 className="text-base sm:text-lg font-editorial font-bold text-ivory mt-0.5">
+                  {customerPhoto ? 'Your Bridal Portrait is Ready' : 'Add Your Photo for Bespoke Atelier Fitting'}
+                </h4>
+                <p className="text-xs text-ivory/70 font-light mt-0.5 max-w-xl">
+                  {customerPhoto
+                    ? `Your portrait is connected across StyleMira. Try on ${selectedDress.name} instantly to see yourself wearing this couture bridal ensemble.`
+                    : 'Capture with your webcam or upload a portrait to preview yourself in this handcrafted Pakistani bridal dress.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full md:w-auto">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
+              {customerPhoto ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleGenerateBridalTryOn}
+                    disabled={isTryOnGenerating}
+                    className="flex-1 md:flex-initial bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl shadow-gold-subtle hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-plum" />
+                    <span>
+                      {isTryOnGenerating
+                        ? 'Draping On You...'
+                        : personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id
+                        ? 'Regenerate Atelier Try-On'
+                        : '✨ Try On This Bridal Ensemble'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="bg-plum-dark hover:bg-burgundy text-champagne border border-champagne/30 text-xs px-3 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
+                    title="Retake camera photo"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span>Retake</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-plum-dark hover:bg-burgundy text-champagne border border-champagne/30 text-xs px-3 py-2.5 rounded-xl transition-colors flex items-center gap-1.5"
+                    title="Upload different photo"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload New</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCustomerPhoto(null)}
+                    className="text-rose text-xs hover:underline px-2 py-2.5"
+                  >
+                    Remove
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="flex-1 md:flex-initial bg-champagne text-plum font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl shadow-gold-subtle hover:scale-105 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Camera className="w-4 h-4 text-plum" />
+                    <span>Start Camera</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 md:flex-initial bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/40 text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Upload Photo</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {tryOnError && (
+            <div className="mt-3 text-xs text-rose-light bg-rose/20 border border-rose/30 rounded-xl p-2.5">
+              {tryOnError}
+            </div>
+          )}
         </div>
 
         {/* Dynamic Color Palette & Harmonization Banner */}
@@ -236,25 +431,89 @@ export const BridalStudioSection: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             {/* Left Bridal Portrait Display */}
             <div className="lg:col-span-6 relative aspect-[3/4] rounded-2xl overflow-hidden border border-champagne/40 shadow-2xl bg-charcoal">
-              <img
-                src={currentCategoryItem.image}
-                alt={currentCategoryItem.name}
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/images/bridal/dupatta-crimson.jpg';
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-plum-dark/85 via-transparent to-transparent" />
+              {activeTab === 'Bridal Dress' && personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id && previewMode === 'tryon' ? (
+                <img
+                  src={personalizedTryOnUrl}
+                  alt={`Personalized Bridal Try-On - ${selectedDress.name}`}
+                  className="w-full h-full object-contain bg-charcoal transition-transform duration-700 hover:scale-105"
+                />
+              ) : (
+                <img
+                  src={currentCategoryItem.image}
+                  alt={currentCategoryItem.name}
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/images/bridal/dupatta-crimson.jpg';
+                  }}
+                />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-plum-dark/85 via-transparent to-transparent pointer-events-none" />
 
-              <div className="absolute top-4 left-4 bg-burgundy/80 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg text-[10px] font-brand tracking-widest uppercase text-champagne">
-                {currentCategoryItem.category}
+              {/* Category / Try-On Badge */}
+              <div className="absolute top-4 left-4 bg-burgundy/85 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg text-[10px] font-brand tracking-widest uppercase text-champagne z-10 shadow">
+                {activeTab === 'Bridal Dress' && personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id && previewMode === 'tryon' ? (
+                  <span className="flex items-center gap-1.5 text-emerald-300">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    <span>Personalized Bridal Try-On</span>
+                  </span>
+                ) : (
+                  <span>{currentCategoryItem.category}</span>
+                )}
               </div>
 
-              <div className="absolute top-4 right-4 bg-plum-dark/80 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg text-[10px] font-brand tracking-wider text-ivory/80">
-                Matched to {selectedDress.color} {selectedDress.name}
-              </div>
+              {/* View Toggle if Try-On is available */}
+              {activeTab === 'Bridal Dress' && personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id && (
+                <div className="absolute top-4 right-4 z-10 flex gap-1 bg-plum-dark/95 backdrop-blur-md p-1 rounded-xl border border-champagne/40 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode('tryon')}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${
+                      previewMode === 'tryon'
+                        ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum shadow-gold-subtle'
+                        : 'text-ivory/70 hover:text-champagne'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>On You</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode('catalog')}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      previewMode === 'catalog'
+                        ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum shadow-gold-subtle'
+                        : 'text-ivory/70 hover:text-champagne'
+                    }`}
+                  >
+                    Catalog
+                  </button>
+                </div>
+              )}
 
-              <div className="absolute bottom-6 left-6 right-6">
+              {/* Generating Try-On Overlay */}
+              {isTryOnGenerating && activeTab === 'Bridal Dress' && (
+                <div className="absolute inset-0 bg-plum-dark/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 z-20 text-center">
+                  <RefreshCw className="w-8 h-8 text-champagne animate-spin mb-3" />
+                  <p className="text-xs font-bold text-champagne uppercase tracking-widest">
+                    Generating Bridal AI Try-On...
+                  </p>
+                  <p className="text-[11px] text-ivory/70 mt-1">
+                    Draping {selectedDress.name} onto your bridal portrait
+                  </p>
+                </div>
+              )}
+
+              {/* Preserved Corner Customer Photo Inset Badge */}
+              {customerPhoto && activeTab === 'Bridal Dress' && (
+                <div className="absolute bottom-4 right-4 w-16 h-20 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal flex flex-col items-center justify-center p-0.5 z-10">
+                  <img src={customerPhoto} alt="Bride's Portrait" className="w-full h-full object-contain" />
+                  <div className="absolute inset-x-0 bottom-0 bg-plum-dark/95 text-center py-0.5 text-[8px] font-brand uppercase text-champagne font-bold">
+                    Bride
+                  </div>
+                </div>
+              )}
+
+              <div className="absolute bottom-6 left-6 right-24 pointer-events-none">
                 <span className="text-xs uppercase tracking-widest text-champagne font-brand block mb-1">
                   Atelier Curation • {activeTheme.themeName}
                 </span>
@@ -368,13 +627,13 @@ export const BridalStudioSection: React.FC = () => {
                 <button
                   onClick={() => {
                     setTryOnProduct(selectedDress);
-                    const el = document.getElementById('tryon');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    setSelectedProduct(selectedDress);
+                    setActiveView('tryon');
                   }}
                   className="px-6 py-4 rounded-xl bg-plum border border-champagne/40 hover:bg-burgundy text-champagne text-xs font-brand uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-champagne" />
-                  <span>TRY IN VIRTUAL SUITE</span>
+                  <span>OPEN IN 3D RUNWAY & TRY-ON</span>
                 </button>
               </div>
 

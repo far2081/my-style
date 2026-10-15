@@ -1080,6 +1080,16 @@ export const VirtualTryOnSection: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Customer Photo / Face Inset Badge - Preserved alongside main result as in AI Stylist */}
+                    {customerPhoto && (
+                      <div className="absolute bottom-4 right-4 w-20 h-24 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal flex flex-col items-center justify-center p-0.5 z-20">
+                        <img src={customerPhoto} alt="Your Portrait" className="w-full h-full object-contain" />
+                        <div className="absolute inset-x-0 bottom-0 bg-plum-dark/95 text-center py-0.5 text-[8px] font-brand uppercase text-champagne font-bold">
+                          Your Photo
+                        </div>
+                      </div>
+                    )}
+
                     {/* Bottom Indicator Dots */}
                     {!renderedResultUrl && (
                       <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-2 z-10 pointer-events-none">

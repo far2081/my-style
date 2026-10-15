@@ -7,12 +7,30 @@ import { PRODUCTS_DATA } from '../../data/products';
 import { aiProviders } from '../../services/aiProvider';
 
 export const AIStylistSection: React.FC = () => {
-  const { setSelectedProduct, setTryOnProduct, setIsTryOnModalOpen, addToCart, products, customerPhoto, setCustomerPhoto, activeFilterOccasion, activeFilterEvent, setActiveView, setCustomerBodyStructure } = useApp();
+  const {
+    setSelectedProduct,
+    setTryOnProduct,
+    setIsTryOnModalOpen,
+    addToCart,
+    products,
+    customerPhoto,
+    setCustomerPhoto,
+    activeFilterOccasion,
+    activeFilterEvent,
+    setActiveView,
+    setCustomerBodyStructure,
+    personalizedTryOnUrl,
+    personalizedTryOnProductId,
+    isTryOnGenerating,
+    tryOnError,
+    generateTryOnForProduct,
+  } = useApp();
 
   const [step, setStep] = useState<'input' | 'processing' | 'result' | 'error'>('input');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stylistError, setStylistError] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'catalog' | 'tryon'>('tryon');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
@@ -198,6 +216,23 @@ export const AIStylistSection: React.FC = () => {
     return scored[0]?.product || products[0];
   }, [geminiRecommendedProduct, products, selectedOccasion, preferredColors, season, dressType, bodyStructure]);
 
+  // Synchronize previewMode to 'tryon' whenever personalized try-on result is available for this dress
+  useEffect(() => {
+    if (personalizedTryOnUrl && personalizedTryOnProductId === recommendedProduct?.id) {
+      setPreviewMode('tryon');
+    }
+  }, [personalizedTryOnUrl, personalizedTryOnProductId, recommendedProduct?.id]);
+
+  const handleGenerateStylistTryOn = async () => {
+    if (!recommendedProduct) return;
+    setCustomerBodyStructure(bodyStructure);
+    setTryOnProduct(recommendedProduct);
+    const success = await generateTryOnForProduct(recommendedProduct);
+    if (success) {
+      setPreviewMode('tryon');
+    }
+  };
+
   return (
     <section className="py-24 bg-plum-dark text-ivory relative overflow-hidden" id="ai-stylist">
       {/* Background glow */}
@@ -348,28 +383,142 @@ export const AIStylistSection: React.FC = () => {
               </div>
             </div>
 
+            {/* View Mode Toggle when Try-On is available for this recommended outfit */}
+            {personalizedTryOnUrl && personalizedTryOnProductId === recommendedProduct.id && (
+              <div className="flex items-center justify-center mb-6">
+                <div className="inline-flex bg-plum-dark/95 p-1.5 rounded-xl border border-champagne/40 shadow-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode('tryon')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                      previewMode === 'tryon'
+                        ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum shadow-gold-subtle'
+                        : 'text-ivory/70 hover:text-champagne'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Personalized AI Try-On</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode('catalog')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                      previewMode === 'catalog'
+                        ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum shadow-gold-subtle'
+                        : 'text-ivory/70 hover:text-champagne'
+                    }`}
+                  >
+                    <span>Catalog Garment Reference</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
               {/* Product and Uploaded Photo Stage (5 cols) */}
               <div className="md:col-span-5 space-y-4">
                 <div className="rounded-xl overflow-hidden aspect-[3/4] relative border border-champagne/30 shadow-lg bg-charcoal">
-                  <ImageWithFallback
-                    src={recommendedProduct.images.front}
-                    alt={recommendedProduct.name}
-                    aspectRatio="aspect-[3/4]"
-                    className="w-full h-full object-cover"
-                  />
-                  <span className="absolute top-3 left-3 bg-plum-dark/80 text-champagne text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-champagne/30">
-                    Recommended For {selectedOccasion}
-                  </span>
+                  {/* Main Display: Try-On Result or Catalog Reference */}
+                  {personalizedTryOnUrl && personalizedTryOnProductId === recommendedProduct.id && previewMode === 'tryon' ? (
+                    <img
+                      src={personalizedTryOnUrl}
+                      alt={`Personalized Try-On for ${recommendedProduct.name}`}
+                      className="w-full h-full object-contain bg-charcoal"
+                    />
+                  ) : (
+                    <ImageWithFallback
+                      src={recommendedProduct.images.front}
+                      alt={recommendedProduct.name}
+                      aspectRatio="aspect-[3/4]"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
 
-                  {/* If user uploaded their photo, show inset badge */}
+                  {/* Top Badge: Clear distinction between Try-On vs Catalog Reference */}
+                  {personalizedTryOnUrl && personalizedTryOnProductId === recommendedProduct.id && previewMode === 'tryon' ? (
+                    <span className="absolute top-3 left-3 bg-emerald-950/90 text-emerald-300 text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-emerald-500/40 shadow flex items-center gap-1.5 z-10">
+                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                      <span>AI Try-On on Your Photo</span>
+                    </span>
+                  ) : (
+                    <span className="absolute top-3 left-3 bg-plum-dark/90 text-champagne text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full border border-champagne/30 z-10">
+                      Catalog Dress Reference
+                    </span>
+                  )}
+
+                  {/* Loading Overlay when generating AI try-on */}
+                  {isTryOnGenerating && (
+                    <div className="absolute inset-0 bg-plum-dark/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 z-20 text-center">
+                      <RefreshCw className="w-8 h-8 text-champagne animate-spin mb-3" />
+                      <p className="text-xs font-bold text-champagne uppercase tracking-widest">
+                        Generating AI Try-On...
+                      </p>
+                      <p className="text-[11px] text-ivory/70 mt-1">
+                        Draping {recommendedProduct.name} onto your portrait
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Customer Photo Inset Badge - Preserved as requested */}
                   {customerPhoto && (
-                    <div className="absolute bottom-3 right-3 w-20 h-20 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal flex items-center justify-center p-0.5">
+                    <div className="absolute bottom-3 right-3 w-20 h-24 rounded-xl overflow-hidden border-2 border-champagne shadow-2xl bg-charcoal flex flex-col items-center justify-center p-0.5 z-10">
                       <img src={customerPhoto} alt="Your portrait" className="w-full h-full object-contain" />
-                      <div className="absolute inset-x-0 bottom-0 bg-plum-dark/90 text-center py-0.5 text-[8px] font-brand uppercase text-champagne">
+                      <div className="absolute inset-x-0 bottom-0 bg-plum-dark/95 text-center py-0.5 text-[8px] font-brand uppercase text-champagne font-bold">
                         Your Photo
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* AI Try-On Action Card */}
+                <div className="bg-plum-dark/80 border border-champagne/25 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-brand uppercase tracking-wider text-champagne font-bold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-champagne" />
+                      <span>Personalized Try-On</span>
+                    </span>
+                    {customerPhoto ? (
+                      <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                        Portrait Ready ✓
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-ivory/60 bg-plum/50 px-2 py-0.5 rounded border border-champagne/20">
+                        No Photo Attached
+                      </span>
+                    )}
+                  </div>
+
+                  {tryOnError && (
+                    <div className="text-[11px] text-rose-light bg-rose/20 border border-rose/30 rounded p-2">
+                      {tryOnError}
+                    </div>
+                  )}
+
+                  {customerPhoto ? (
+                    <button
+                      type="button"
+                      onClick={handleGenerateStylistTryOn}
+                      disabled={isTryOnGenerating}
+                      className="w-full bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum font-bold text-xs uppercase tracking-wider py-2.5 rounded-lg shadow hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4 text-plum" />
+                      <span>
+                        {isTryOnGenerating
+                          ? 'Draping On You...'
+                          : personalizedTryOnUrl && personalizedTryOnProductId === recommendedProduct.id
+                          ? 'Regenerate Try-On on You'
+                          : '✨ Generate AI Try-On on My Photo'}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setStep('input')}
+                      className="w-full bg-burgundy hover:bg-burgundy-light text-champagne border border-champagne/30 text-xs uppercase tracking-wider py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Upload Photo to Try On</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -410,12 +559,12 @@ export const AIStylistSection: React.FC = () => {
                     onClick={() => {
                       setCustomerBodyStructure(bodyStructure);
                       setTryOnProduct(recommendedProduct);
-                      setIsTryOnModalOpen(true);
+                      setActiveView('tryon');
                     }}
                     className="bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum font-bold text-xs uppercase tracking-widest px-6 py-3.5 rounded-xl shadow-gold-subtle hover:scale-105 transition-all flex items-center gap-2"
                   >
                     <Eye className="w-4 h-4 text-plum" />
-                    <span>View in 360° Try-On</span>
+                    <span>Open in 3D Runway & Dressing Room</span>
                   </button>
 
                   <button
