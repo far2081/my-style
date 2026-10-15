@@ -177,6 +177,51 @@ export const VirtualTryOnSection: React.FC = () => {
   const cameraCaptureInputRef = useRef<HTMLInputElement>(null);
   const bodyFileInputRef = useRef<HTMLInputElement>(null);
   const [framingNotice, setFramingNotice] = useState<string | null>(null);
+  const [resultAssessment, setResultAssessment] = useState<{
+    coverage: 'full-length' | 'knee-length' | 'waist-length';
+    dimensions?: { width: number; height: number };
+    label: string;
+    notice?: string;
+  } | null>(null);
+
+  // Analyze generated AI Try-On image dimensions and coverage ratio
+  useEffect(() => {
+    if (!renderedResultUrl) {
+      setResultAssessment(null);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth || 768;
+      const h = img.naturalHeight || 1024;
+      const ratio = h / w;
+
+      if (ratio >= 1.22) {
+        setResultAssessment({
+          coverage: 'full-length',
+          dimensions: { width: w, height: h },
+          label: 'Full-Length Silhouette Fitted ✓',
+        });
+      } else if (ratio >= 1.05) {
+        setResultAssessment({
+          coverage: 'knee-length',
+          dimensions: { width: w, height: h },
+          label: 'Knee-Length Fitted Silhouette',
+          notice:
+            'Output terminates around the knees. Full floor-length hemline synthesis requires both a head-to-feet customer photo AND a complete floor-length catalog photo.',
+        });
+      } else {
+        setResultAssessment({
+          coverage: 'waist-length',
+          dimensions: { width: w, height: h },
+          label: 'Bodice & Neckline Fitted',
+          notice: 'Partial crop detected. Garment fitted to visible customer frame.',
+        });
+      }
+    };
+    img.src = renderedResultUrl;
+  }, [renderedResultUrl]);
 
   // Helper to detect image framing, completeness, and orientation
   const detectPhotoFraming = (dataUrl: string) => {
@@ -189,8 +234,10 @@ export const VirtualTryOnSection: React.FC = () => {
       // Validate resolution & completeness
       if (w < 256 || h < 256) {
         setFramingNotice('Image resolution is very low (< 256px). Please retake or upload a higher resolution photo for authentic fitting.');
-      } else if (ratio < 0.6) {
-        setFramingNotice('Wide landscape frame detected. If your head, face, or feet are cropped off, please retake with camera upright for full-body fitting.');
+      } else if (ratio < 0.8) {
+        setFramingNotice('Wide landscape frame detected. Full-length dress fitting requires an upright portrait (standing 6–8 ft back) so head, torso, and feet are all in frame.');
+      } else if (ratio < 1.25) {
+        setFramingNotice('Knee/mid-length crop detected. To drape the full skirt down to the hemline, please step back so your entire body from head to shoes is visible.');
       } else {
         setFramingNotice(null);
       }
@@ -307,6 +354,11 @@ export const VirtualTryOnSection: React.FC = () => {
       }
     }
 
+    const selectedGarmentImage =
+      currentDress.images?.fullLook && currentDress.images.fullLook.trim()
+        ? currentDress.images.fullLook
+        : currentDress.images.front;
+
     // Normalize customer image to clean 768x1024 (3:4 portrait) canvas so person and 3:4 dress share identical proportions
     const normalizedAvatar = await normalizeTo3x4Portrait(photoToUse);
 
@@ -315,7 +367,7 @@ export const VirtualTryOnSection: React.FC = () => {
       customerFaceUrl: customerPhoto || undefined,
       customerBodyUrl: customerBodyPhoto || (photoType === 'fullbody' ? normalizedAvatar : undefined),
       bodyStructure: customerBodyStructure,
-      garmentImageUrl: currentDress.images.front,
+      garmentImageUrl: selectedGarmentImage,
       productId: currentDress.id,
       productName: currentDress.name,
       dressType: currentDress.dressType,
@@ -974,9 +1026,22 @@ export const VirtualTryOnSection: React.FC = () => {
                       )}
                     </div>
 
-                    {/* View Angle Pill */}
-                    <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10 shadow-luxury">
-                      {renderedResultUrl ? '2D Neural Try-On Result ✓' : `${activeView.toUpperCase()} VIEW`}
+                    {/* View Angle / Result Assessment Pill */}
+                    <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10 shadow-luxury flex items-center gap-1.5">
+                      {renderedResultUrl ? (
+                        <>
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              resultAssessment?.coverage === 'full-length'
+                                ? 'bg-emerald-400'
+                                : 'bg-amber-400'
+                            }`}
+                          />
+                          <span>{resultAssessment?.label || '2D Neural Try-On Result ✓'}</span>
+                        </>
+                      ) : (
+                        `${activeView.toUpperCase()} VIEW`
+                      )}
                     </div>
 
                     {/* Quick Steppers (Left/Right Arrows) for cycling views of the same dress */}
@@ -1004,6 +1069,14 @@ export const VirtualTryOnSection: React.FC = () => {
                         >
                           <ChevronRight className="w-5 h-5" />
                         </button>
+                      </div>
+                    )}
+
+                    {/* Transparent Diagnostic Assessment for Partial or Knee-Crop Results */}
+                    {renderedResultUrl && resultAssessment?.notice && (
+                      <div className="absolute bottom-4 inset-x-4 bg-plum-dark/95 backdrop-blur-md border border-champagne/40 rounded-xl px-3.5 py-2 text-center text-[10px] text-ivory/90 shadow-xl flex items-center justify-center gap-2 z-10 pointer-events-none">
+                        <Info className="w-3.5 h-3.5 text-champagne flex-shrink-0" />
+                        <span>{resultAssessment.notice}</span>
                       </div>
                     )}
 

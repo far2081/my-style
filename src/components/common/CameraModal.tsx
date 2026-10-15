@@ -442,10 +442,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               />
               <div className="absolute top-3 left-3 bg-plum-dark/90 px-3 py-1 rounded-full border border-champagne/30 text-[10px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1.5 shadow-md">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>Full-Frame Uncropped Preview</span>
+                <span>Calibrated 3:4 Full-Body Frame</span>
               </div>
-              <div className="absolute bottom-3 inset-x-4 bg-plum-dark/90 backdrop-blur-sm border border-champagne/30 rounded-xl px-3 py-1.5 text-center text-[10px] text-ivory/90 font-light pointer-events-none">
-                Verify your head and full body length are complete before confirming.
+              <div className="absolute bottom-3 inset-x-4 bg-plum-dark/95 backdrop-blur-sm border border-champagne/40 rounded-xl px-3.5 py-2 text-center text-[10px] text-ivory/90 leading-snug pointer-events-none shadow-xl">
+                <span className="text-champagne font-semibold font-brand block uppercase text-[9px] mb-0.5">Full-Length Check:</span>
+                Verify your head, shoulders, torso, and feet are all visible. If cropped around the knees, click Retake and step back.
               </div>
             </div>
           )}
@@ -538,6 +539,11 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                   <span className="text-[8px] uppercase tracking-wider text-champagne/80 font-brand text-center">
                     Torso & Garment Drape
                   </span>
+                </div>
+
+                {/* Distance Guidance Tip */}
+                <div className="bg-plum-dark/95 border border-champagne/40 px-3 py-1 rounded-full text-[8.5px] uppercase tracking-wider text-champagne font-brand shadow-lg">
+                  Stand 6–8 ft back • Full body from head to shoes inside guide
                 </div>
 
                 {/* Bottom: Hemline & Feet clearance */}

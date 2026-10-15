@@ -49,13 +49,19 @@ export async function normalizeTo3x4Portrait(
 
         // Case 1: Source is roughly 3:4 portrait (within 4% tolerance)
         if (Math.abs(sourceRatio - targetRatio) < 0.04) {
-          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          // Slight vertical padding (3%) for headroom and foot clearance
+          const vPad = Math.round(targetHeight * 0.03);
+          const drawH = targetHeight - (vPad * 2);
+          const drawW = Math.round(drawH * sourceRatio);
+          const dx = Math.round((targetWidth - drawW) / 2);
+          ctx.drawImage(img, 0, 0, w, h, dx, vPad, drawW, drawH);
         }
         // Case 2: Source is taller than 3:4 (e.g. mobile 9:16 portrait)
         else if (sourceRatio < targetRatio) {
-          // Scale to full height to preserve head and feet without cropping
-          const drawH = targetHeight;
-          const drawW = Math.round(targetHeight * sourceRatio);
+          // Scale with 3.5% vertical headroom & floor clearance so hair and hemline aren't clipped by edge convolutions
+          const vPad = Math.round(targetHeight * 0.035);
+          const drawH = targetHeight - (vPad * 2);
+          const drawW = Math.round(drawH * sourceRatio);
           const dx = Math.round((targetWidth - drawW) / 2);
 
           // Draw blurred ambient background to prevent sharp edge artifacts for AI mask
@@ -72,8 +78,8 @@ export async function normalizeTo3x4Portrait(
           ctx.fillStyle = 'rgba(26, 17, 24, 0.4)';
           ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-          // Draw crisp full-body figure centered
-          ctx.drawImage(img, 0, 0, w, h, dx, 0, drawW, drawH);
+          // Draw crisp full-body figure centered with headroom & feet clearance
+          ctx.drawImage(img, 0, 0, w, h, dx, vPad, drawW, drawH);
         }
         // Case 3: Source is wider than 3:4 (e.g. 4:3 or landscape webcam)
         else {
@@ -85,7 +91,7 @@ export async function normalizeTo3x4Portrait(
             // Center 3:4 crop: captures the centered person head-to-toe
             ctx.drawImage(img, sx, 0, sWidth, h, 0, 0, targetWidth, targetHeight);
           } else {
-            // Fallback contain
+            // Fallback contain with vertical centering
             const drawW = targetWidth;
             const drawH = Math.round(targetWidth / sourceRatio);
             const dy = Math.round((targetHeight - drawH) / 2);
