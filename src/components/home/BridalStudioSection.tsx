@@ -57,8 +57,54 @@ export const BridalStudioSection: React.FC = () => {
   const [isSavedLook, setIsSavedLook] = useState(false);
   const [addedToCartNotification, setAddedToCartNotification] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'catalog' | 'tryon' | 'customer'>('tryon');
+  const [previewMode, setPreviewMode] = useState<'catalog' | 'tryon' | 'customer' | 'compare'>('tryon');
+  const [bridalCategory, setBridalCategory] = useState<string>('All');
+  const [bridalColor, setBridalColor] = useState<string>('All');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const bridalCategories = [
+    { label: 'All Looks', value: 'All' },
+    { label: 'Barat', value: 'Barat' },
+    { label: 'Nikah', value: 'Nikah' },
+    { label: 'Valima', value: 'Valima' },
+    { label: 'Bridal Couture', value: 'Bridal' },
+    { label: 'Mehndi', value: 'Mehndi' },
+  ];
+
+  const bridalColors = [
+    'All',
+    'Burgundy',
+    'Maroon',
+    'Crimson',
+    'Champagne',
+    'Gold',
+    'Peach',
+    'Plum',
+    'Silver',
+  ];
+
+  // Filter bridal dresses by selected occasion and color
+  const filteredBridalDresses = useMemo(() => {
+    return bridalDresses.filter((d) => {
+      if (bridalCategory !== 'All') {
+        const catKey = bridalCategory.toLowerCase();
+        const occ = (d.occasion || '').toLowerCase();
+        const evt = (d.event || '').toLowerCase();
+        const cat = (d.category || '').toLowerCase();
+        if (!occ.includes(catKey) && !evt.includes(catKey) && !cat.includes(catKey)) {
+          return false;
+        }
+      }
+      if (bridalColor !== 'All') {
+        const colKey = bridalColor.toLowerCase();
+        const col = (d.color || '').toLowerCase();
+        if (!col.includes(colKey)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [bridalDresses, bridalCategory, bridalColor]);
 
   // Sync if tryOnProduct changes from another section
   useEffect(() => {
@@ -331,20 +377,60 @@ export const BridalStudioSection: React.FC = () => {
 
         {/* 1. BRIDAL DRESS SELECTOR CAROUSEL / GRID */}
         <div className="mb-12">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <Shirt className="w-4 h-4 text-champagne" />
               <h3 className="text-sm font-brand uppercase tracking-widest text-champagne font-bold">
-                Step 1: Choose Your Bridal Dress ({bridalDresses.length} Haute Couture Ensembles)
+                Step 1: Choose Your Bridal Dress ({filteredBridalDresses.length} of {bridalDresses.length} Haute Couture Ensembles)
               </h3>
             </div>
-            <span className="text-xs text-ivory/60 hidden sm:inline">
+            <span className="text-xs text-ivory/60">
               Click any dress to recalibrate all matching accessories
             </span>
           </div>
 
+          {/* Bridal Category & Color Filters */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 bg-plum-dark/40 border border-champagne/20 rounded-2xl p-3">
+            {/* Occasion Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {bridalCategories.map((cat) => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setBridalCategory(cat.value)}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-brand uppercase tracking-wider transition-all ${
+                    bridalCategory === cat.value
+                      ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum font-bold shadow-gold-subtle'
+                      : 'bg-plum-dark/90 text-ivory/70 hover:text-champagne border border-champagne/20'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Color Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <span className="text-[10px] text-ivory/50 uppercase font-brand mr-1">Color:</span>
+              {bridalColors.map((col) => (
+                <button
+                  key={col}
+                  type="button"
+                  onClick={() => setBridalColor(col)}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] transition-all ${
+                    bridalColor === col
+                      ? 'bg-burgundy text-champagne border border-champagne font-bold shadow-sm'
+                      : 'bg-plum-dark/60 text-ivory/60 hover:text-champagne border border-champagne/15'
+                  }`}
+                >
+                  {col}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-72 overflow-y-auto p-1 no-scrollbar rounded-2xl bg-plum-dark/50 border border-champagne/20">
-            {bridalDresses.map((dress) => {
+            {(filteredBridalDresses.length > 0 ? filteredBridalDresses : bridalDresses).map((dress) => {
               const isCurrent = dress.id === selectedDress.id;
               return (
                 <div
@@ -431,7 +517,63 @@ export const BridalStudioSection: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             {/* Left Bridal Portrait Display */}
             <div className="lg:col-span-6 relative aspect-[3/4] rounded-2xl overflow-hidden border border-champagne/40 shadow-2xl bg-charcoal">
-              {activeTab === 'Bridal Dress' && previewMode === 'customer' && customerPhoto ? (
+              {activeTab === 'Bridal Dress' && previewMode === 'compare' ? (
+                <div className="w-full h-full p-2 bg-charcoal grid grid-cols-3 gap-2">
+                  {/* Panel 1: Original Customer Photo */}
+                  <div className="relative rounded-xl overflow-hidden border border-champagne/30 bg-black/40 flex flex-col justify-between p-1">
+                    <span className="text-[8px] font-brand uppercase text-champagne bg-plum-dark/90 px-1.5 py-0.5 rounded-md z-10 self-center">
+                      1. Your Photo
+                    </span>
+                    <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden my-1">
+                      {customerPhoto ? (
+                        <img
+                          src={customerPhoto}
+                          alt="Bride's Portrait"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-ivory/40 text-center px-1">No portrait attached</span>
+                      )}
+                    </div>
+                    <span className="text-[8px] text-ivory/60 truncate text-center pb-0.5">Original Portrait</span>
+                  </div>
+
+                  {/* Panel 2: Catalog Dress */}
+                  <div className="relative rounded-xl overflow-hidden border border-champagne/30 bg-black/40 flex flex-col justify-between p-1">
+                    <span className="text-[8px] font-brand uppercase text-champagne bg-plum-dark/90 px-1.5 py-0.5 rounded-md z-10 self-center">
+                      2. Catalog Dress
+                    </span>
+                    <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden my-1">
+                      <img
+                        src={selectedDress.images.front}
+                        alt={selectedDress.name}
+                        className="w-full h-full object-cover rounded"
+                      />
+                    </div>
+                    <span className="text-[8px] text-ivory/60 truncate text-center pb-0.5">{selectedDress.name}</span>
+                  </div>
+
+                  {/* Panel 3: Frontal 2D AI Try-On */}
+                  <div className="relative rounded-xl overflow-hidden border border-emerald-500/50 bg-black/40 flex flex-col justify-between p-1">
+                    <span className="text-[8px] font-brand uppercase text-emerald-300 bg-emerald-950/90 px-1.5 py-0.5 rounded-md z-10 self-center flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                      <span>3. 2D Try-On</span>
+                    </span>
+                    <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden my-1">
+                      {personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id ? (
+                        <img
+                          src={personalizedTryOnUrl}
+                          alt="Frontal 2D AI Try-On"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-ivory/40 text-center px-1">Click Try On Now below</span>
+                      )}
+                    </div>
+                    <span className="text-[8px] text-emerald-400/80 truncate text-center pb-0.5">Frontal 2D Inpaint</span>
+                  </div>
+                </div>
+              ) : activeTab === 'Bridal Dress' && previewMode === 'customer' && customerPhoto ? (
                 <img
                   src={customerPhoto}
                   alt="Bride's Portrait"
@@ -457,7 +599,11 @@ export const BridalStudioSection: React.FC = () => {
 
               {/* Category / Try-On Badge */}
               <div className="absolute top-4 left-4 bg-burgundy/85 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg text-[10px] font-brand tracking-widest uppercase text-champagne z-10 shadow">
-                {activeTab === 'Bridal Dress' && previewMode === 'customer' ? (
+                {activeTab === 'Bridal Dress' && previewMode === 'compare' ? (
+                  <span className="flex items-center gap-1.5 text-champagne">
+                    <span>3-Way Couture Comparison</span>
+                  </span>
+                ) : activeTab === 'Bridal Dress' && previewMode === 'customer' ? (
                   <span className="flex items-center gap-1.5 text-champagne">
                     <Camera className="w-3 h-3 text-champagne" />
                     <span>Bride's Portrait</span>
@@ -465,7 +611,7 @@ export const BridalStudioSection: React.FC = () => {
                 ) : activeTab === 'Bridal Dress' && personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id && previewMode === 'tryon' ? (
                   <span className="flex items-center gap-1.5 text-emerald-300">
                     <Sparkles className="w-3 h-3 text-emerald-400" />
-                    <span>Haute Couture Try-On On You</span>
+                    <span>Frontal 2D Haute Couture Try-On</span>
                   </span>
                 ) : (
                   <span>{currentCategoryItem.category}</span>
@@ -487,6 +633,19 @@ export const BridalStudioSection: React.FC = () => {
                     >
                       <Sparkles className="w-3 h-3" />
                       <span>On You</span>
+                    </button>
+                  )}
+                  {customerPhoto && personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('compare')}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                        previewMode === 'compare'
+                          ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum shadow-gold-subtle'
+                          : 'text-ivory/70 hover:text-champagne'
+                      }`}
+                    >
+                      Compare
                     </button>
                   )}
                   <button
@@ -513,6 +672,19 @@ export const BridalStudioSection: React.FC = () => {
                       Portrait
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Honest 2D Try-On Information Strip */}
+              {activeTab === 'Bridal Dress' && personalizedTryOnUrl && personalizedTryOnProductId === selectedDress.id && previewMode === 'tryon' && (
+                <div className="absolute inset-x-4 bottom-24 z-10 bg-plum-dark/95 backdrop-blur-md border border-champagne/30 rounded-xl px-3 py-1.5 flex items-center justify-between text-[9px] text-ivory/80 shadow-lg pointer-events-none">
+                  <span className="flex items-center gap-1.5 text-champagne font-brand uppercase tracking-wider font-semibold">
+                    <Sparkles className="w-3 h-3 text-champagne" />
+                    <span>Frontal 2D AI Drape</span>
+                  </span>
+                  <span className="text-ivory/60 truncate">
+                    Frontal fitting preview • For 360° motion, see 3D Runway
+                  </span>
                 </div>
               )}
 

@@ -216,13 +216,18 @@ export const RunwaySection: React.FC = () => {
   const controlsRef = useRef<OrbitControls | null>(null);
   const avatarGroupRef = useRef<THREE.Group | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const targetCameraOffsetRef = useRef<THREE.Vector3 | null>(new THREE.Vector3(0, 1.6, 4.8));
 
   // Mesh & Rig references for animation & procedural silhouette
   const rigRef = useRef<{
     leftLeg: THREE.Group;
     rightLeg: THREE.Group;
+    leftKnee?: THREE.Group;
+    rightKnee?: THREE.Group;
     leftArm: THREE.Group;
     rightArm: THREE.Group;
+    leftElbow?: THREE.Group;
+    rightElbow?: THREE.Group;
     torso: THREE.Group;
     head: THREE.Group;
     faceMaterial: THREE.MeshStandardMaterial;
@@ -834,54 +839,124 @@ export const RunwaySection: React.FC = () => {
     tikka.rotation.x = -Math.PI / 3;
     head.add(tikka);
 
-    // Arms & Hands (Natural shoulder width 0.37m, rounded deltoid caps)
-    const armGeo = new THREE.CylinderGeometry(0.036, 0.028, 0.46, 14);
+    // Articulated Arms (Natural shoulder width 0.37m, rounded deltoid, articulated elbow)
+    const upperArmGeo = new THREE.CylinderGeometry(0.034, 0.029, 0.23, 14);
+    const forearmGeo = new THREE.CylinderGeometry(0.028, 0.022, 0.23, 14);
+    const jointSphereGeo = new THREE.SphereGeometry(0.032, 12, 12);
+    const handGeo = new THREE.SphereGeometry(0.024, 12, 12);
     const shoulderGeo = new THREE.SphereGeometry(0.04, 14, 14);
 
+    // Left Arm
     const leftArm = new THREE.Group();
     leftArm.position.set(-0.185, 0.14, 0);
-    const leftArmMesh = new THREE.Mesh(armGeo, skinMaterial);
-    leftArmMesh.position.y = -0.23;
-    leftArmMesh.castShadow = true;
-    leftArm.add(leftArmMesh);
     const leftShoulderCap = new THREE.Mesh(shoulderGeo, skinMaterial);
     leftArm.add(leftShoulderCap);
+    const leftUpperArmMesh = new THREE.Mesh(upperArmGeo, skinMaterial);
+    leftUpperArmMesh.position.y = -0.115;
+    leftUpperArmMesh.castShadow = true;
+    leftArm.add(leftUpperArmMesh);
+
+    const leftElbow = new THREE.Group();
+    leftElbow.position.set(0, -0.23, 0);
+    const leftElbowMesh = new THREE.Mesh(jointSphereGeo, skinMaterial);
+    leftElbow.add(leftElbowMesh);
+    const leftForearmMesh = new THREE.Mesh(forearmGeo, skinMaterial);
+    leftForearmMesh.position.y = -0.115;
+    leftForearmMesh.castShadow = true;
+    leftElbow.add(leftForearmMesh);
+    const leftHandMesh = new THREE.Mesh(handGeo, skinMaterial);
+    leftHandMesh.position.set(0, -0.23, 0.01);
+    leftHandMesh.scale.set(0.8, 1.2, 0.8);
+    leftElbow.add(leftHandMesh);
+    leftArm.add(leftElbow);
     torso.add(leftArm);
 
+    // Right Arm
     const rightArm = new THREE.Group();
     rightArm.position.set(0.185, 0.14, 0);
-    const rightArmMesh = new THREE.Mesh(armGeo, skinMaterial);
-    rightArmMesh.position.y = -0.23;
-    rightArmMesh.castShadow = true;
-    rightArm.add(rightArmMesh);
     const rightShoulderCap = new THREE.Mesh(shoulderGeo, skinMaterial);
     rightArm.add(rightShoulderCap);
+    const rightUpperArmMesh = new THREE.Mesh(upperArmGeo, skinMaterial);
+    rightUpperArmMesh.position.y = -0.115;
+    rightUpperArmMesh.castShadow = true;
+    rightArm.add(rightUpperArmMesh);
+
+    const rightElbow = new THREE.Group();
+    rightElbow.position.set(0, -0.23, 0);
+    const rightElbowMesh = new THREE.Mesh(jointSphereGeo, skinMaterial);
+    rightElbow.add(rightElbowMesh);
+    const rightForearmMesh = new THREE.Mesh(forearmGeo, skinMaterial);
+    rightForearmMesh.position.y = -0.115;
+    rightForearmMesh.castShadow = true;
+    rightElbow.add(rightForearmMesh);
+    const rightHandMesh = new THREE.Mesh(handGeo, skinMaterial);
+    rightHandMesh.position.set(0, -0.23, 0.01);
+    rightHandMesh.scale.set(0.8, 1.2, 0.8);
+    rightElbow.add(rightHandMesh);
+    rightArm.add(rightElbow);
     torso.add(rightArm);
 
-    // Legs
-    const legGeo = new THREE.CylinderGeometry(0.055, 0.04, 0.85, 14);
+    // Articulated Legs (Haute couture runway proportions: thigh + articulated knee + calf + metallic couture heel)
+    const thighGeo = new THREE.CylinderGeometry(0.052, 0.040, 0.42, 16);
+    const kneeCapGeo = new THREE.SphereGeometry(0.041, 14, 14);
+    const calfGeo = new THREE.CylinderGeometry(0.038, 0.026, 0.43, 16);
+    const shoeGeo = new THREE.BoxGeometry(0.052, 0.036, 0.13);
 
+    // Left Leg
     const leftLeg = new THREE.Group();
-    leftLeg.position.set(-0.11, -0.18, 0);
-    const leftLegMesh = new THREE.Mesh(legGeo, skinMaterial);
-    leftLegMesh.position.y = -0.42;
-    leftLegMesh.castShadow = true;
-    leftLeg.add(leftLegMesh);
+    leftLeg.position.set(-0.10, -0.18, 0);
+    const leftThighMesh = new THREE.Mesh(thighGeo, skinMaterial);
+    leftThighMesh.position.y = -0.21;
+    leftThighMesh.castShadow = true;
+    leftLeg.add(leftThighMesh);
+
+    const leftKnee = new THREE.Group();
+    leftKnee.position.set(0, -0.42, 0);
+    const leftKneeMesh = new THREE.Mesh(kneeCapGeo, skinMaterial);
+    leftKnee.add(leftKneeMesh);
+    const leftCalfMesh = new THREE.Mesh(calfGeo, skinMaterial);
+    leftCalfMesh.position.y = -0.215;
+    leftCalfMesh.castShadow = true;
+    leftKnee.add(leftCalfMesh);
+    const leftShoe = new THREE.Mesh(shoeGeo, goldZariMaterial);
+    leftShoe.position.set(0, -0.42, 0.025);
+    leftShoe.castShadow = true;
+    leftKnee.add(leftShoe);
+    leftLeg.add(leftKnee);
     torso.add(leftLeg);
 
+    // Right Leg
     const rightLeg = new THREE.Group();
-    rightLeg.position.set(0.11, -0.18, 0);
-    const rightLegMesh = new THREE.Mesh(legGeo, skinMaterial);
-    rightLegMesh.position.y = -0.42;
-    rightLegMesh.castShadow = true;
-    rightLeg.add(rightLegMesh);
+    rightLeg.position.set(0.10, -0.18, 0);
+    const rightThighMesh = new THREE.Mesh(thighGeo, skinMaterial);
+    rightThighMesh.position.y = -0.21;
+    rightThighMesh.castShadow = true;
+    rightLeg.add(rightThighMesh);
+
+    const rightKnee = new THREE.Group();
+    rightKnee.position.set(0, -0.42, 0);
+    const rightKneeMesh = new THREE.Mesh(kneeCapGeo, skinMaterial);
+    rightKnee.add(rightKneeMesh);
+    const rightCalfMesh = new THREE.Mesh(calfGeo, skinMaterial);
+    rightCalfMesh.position.y = -0.215;
+    rightCalfMesh.castShadow = true;
+    rightKnee.add(rightCalfMesh);
+    const rightShoe = new THREE.Mesh(shoeGeo, goldZariMaterial);
+    rightShoe.position.set(0, -0.42, 0.025);
+    rightShoe.castShadow = true;
+    rightKnee.add(rightShoe);
+    rightLeg.add(rightKnee);
     torso.add(rightLeg);
 
     rigRef.current = {
       leftLeg,
       rightLeg,
+      leftKnee,
+      rightKnee,
       leftArm,
       rightArm,
+      leftElbow,
+      rightElbow,
       torso,
       head,
       faceMaterial,
@@ -902,92 +977,229 @@ export const RunwaySection: React.FC = () => {
       rightArm
     );
 
-    // 9. Animation Loop
+    // 9. Continuous Catwalk Circuit State & Animation Loop
     let clock = new THREE.Clock();
     let walkPhase = 0;
-    let runwayProgress = 0;
+
+    // Catwalk Runway Boundaries (back entrance to front photographer pit)
+    const runwayZStart = -4.2;
+    const runwayZEnd = 3.3;
+
+    // Catwalk state machine
+    type CatwalkState = 'walk_forward' | 'pose_front' | 'turn_back' | 'walk_back' | 'pose_back' | 'turn_front';
+    let catwalkState: CatwalkState = 'walk_forward';
+    let stateTimer = 0;
+
+    // Set initial position: backstage, walking forward
+    avatarGroup.position.set(0, 0, -3.2);
+    avatarGroup.rotation.set(0, 0, 0);
+    let lastAvatarZ = avatarGroup.position.z;
+
+    // Allow user manual orbit to disengage automated camera preset snapping
+    controls.addEventListener('start', () => {
+      targetCameraOffsetRef.current = null;
+    });
 
     const animate = () => {
       animationFrameRef.current = requestAnimationFrame(animate);
 
-      const delta = clock.getDelta();
+      const delta = Math.min(clock.getDelta(), 0.1); // clamp delta to prevent physics jumps
       controls.update();
 
-      // Smooth camera interpolation toward target angle preset
-      if (targetCameraPosRef.current && cameraRef.current) {
-        cameraRef.current.position.lerp(targetCameraPosRef.current, 0.08);
-        controls.target.set(0, 1.25, 0);
-        if (cameraRef.current.position.distanceTo(targetCameraPosRef.current) < 0.02) {
-          targetCameraPosRef.current = null;
-        }
-      }
-
       if (isPlayingRef.current && rigRef.current && avatarGroupRef.current) {
-        walkPhase += delta * 4.2 * walkSpeedRef.current;
+        const speedMultiplier = walkSpeedRef.current;
+        const forwardSpeed = 1.15 * speedMultiplier;
+        const walkFreq = 3.6 * speedMultiplier;
 
-        // Oscillating runway gait
-        const hipSway = Math.sin(walkPhase) * 0.08;
-        const legAngleL = Math.sin(walkPhase) * 0.42;
-        const legAngleR = -Math.sin(walkPhase) * 0.42;
-        const armAngleL = -Math.sin(walkPhase) * 0.32;
-        const armAngleR = Math.sin(walkPhase) * 0.32;
+        // Catwalk State Transitions
+        if (catwalkState === 'walk_forward') {
+          walkPhase += delta * walkFreq;
+          avatarGroupRef.current.position.z += forwardSpeed * delta;
+          avatarGroupRef.current.rotation.y = 0;
 
-        // Apply limb rotations
-        rigRef.current.leftLeg.rotation.x = legAngleL;
-        rigRef.current.rightLeg.rotation.x = legAngleR;
-        rigRef.current.leftArm.rotation.x = armAngleL;
-        rigRef.current.rightArm.rotation.x = armAngleR;
+          if (avatarGroupRef.current.position.z >= runwayZEnd) {
+            avatarGroupRef.current.position.z = runwayZEnd;
+            catwalkState = 'pose_front';
+            stateTimer = 1.8;
+          }
+        } else if (catwalkState === 'pose_front') {
+          stateTimer -= delta;
+          if (stateTimer <= 0) {
+            catwalkState = 'turn_back';
+            stateTimer = 1.2;
+          }
+        } else if (catwalkState === 'turn_back') {
+          stateTimer -= delta;
+          const progress = Math.min(1, Math.max(0, 1 - stateTimer / 1.2));
+          const ease = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+          avatarGroupRef.current.rotation.y = ease * Math.PI;
+          walkPhase += delta * 2.2 * speedMultiplier;
 
-        // Torso oscillation & vertical bob
-        rigRef.current.torso.rotation.z = hipSway * 0.6;
-        rigRef.current.torso.rotation.y = Math.cos(walkPhase) * 0.05;
-        avatarGroupRef.current.position.y = Math.abs(Math.sin(walkPhase * 2)) * 0.035;
+          if (stateTimer <= 0) {
+            avatarGroupRef.current.rotation.y = Math.PI;
+            catwalkState = 'walk_back';
+          }
+        } else if (catwalkState === 'walk_back') {
+          walkPhase += delta * walkFreq;
+          avatarGroupRef.current.position.z -= forwardSpeed * delta;
+          avatarGroupRef.current.rotation.y = Math.PI;
 
-        // Dynamic fabric movement tailored to silhouette
-        if (rigRef.current.skirtMesh) {
-          rigRef.current.skirtMesh.rotation.z = -hipSway * 0.8;
+          if (avatarGroupRef.current.position.z <= runwayZStart) {
+            avatarGroupRef.current.position.z = runwayZStart;
+            catwalkState = 'pose_back';
+            stateTimer = 1.0;
+          }
+        } else if (catwalkState === 'pose_back') {
+          stateTimer -= delta;
+          if (stateTimer <= 0) {
+            catwalkState = 'turn_front';
+            stateTimer = 1.2;
+          }
+        } else if (catwalkState === 'turn_front') {
+          stateTimer -= delta;
+          const progress = Math.min(1, Math.max(0, 1 - stateTimer / 1.2));
+          const ease = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+          avatarGroupRef.current.rotation.y = Math.PI + ease * Math.PI;
+          walkPhase += delta * 2.2 * speedMultiplier;
+
+          if (stateTimer <= 0) {
+            avatarGroupRef.current.rotation.y = 0;
+            catwalkState = 'walk_forward';
+          }
         }
 
-        if (rigRef.current.dupattaMesh) {
-          rigRef.current.dupattaMesh.rotation.z = Math.sin(walkPhase * 1.5) * 0.08;
-          rigRef.current.dupattaMesh.rotation.x = Math.cos(walkPhase) * 0.12;
-        }
+        // Limb Kinematics & Posture depending on state
+        const isWalking = catwalkState === 'walk_forward' || catwalkState === 'walk_back' || catwalkState === 'turn_back' || catwalkState === 'turn_front';
 
-        // Gharara bell flounces sway with leg swings
-        if (rigRef.current.leftGhararaBell) {
-          rigRef.current.leftGhararaBell.rotation.z = Math.sin(walkPhase) * 0.12;
-        }
-        if (rigRef.current.rightGhararaBell) {
-          rigRef.current.rightGhararaBell.rotation.z = -Math.sin(walkPhase) * 0.12;
-        }
+        if (isWalking) {
+          const swingL = Math.sin(walkPhase);
+          const swingR = -Math.sin(walkPhase);
 
-        // Kaftan butterfly sleeves flutter with stride
-        if (rigRef.current.kaftanLeftWing) {
-          rigRef.current.kaftanLeftWing.rotation.z = Math.sin(walkPhase * 1.8) * 0.15;
-        }
-        if (rigRef.current.kaftanRightWing) {
-          rigRef.current.kaftanRightWing.rotation.z = -Math.sin(walkPhase * 1.8) * 0.15;
-        }
+          // Articulated Legs (Leg swing + Knee flex backwards on forward stride)
+          rigRef.current.leftLeg.rotation.x = swingL * 0.38;
+          rigRef.current.rightLeg.rotation.x = swingR * 0.38;
 
-        // Runway stride progression along catwalk
-        runwayProgress += delta * 0.55 * walkSpeedRef.current;
-        const strideZ = (Math.sin(runwayProgress) * 0.5 + 0.5) * (runwayLength * 0.35) - runwayLength * 0.15;
-        avatarGroupRef.current.position.z = strideZ;
+          if (rigRef.current.leftKnee) {
+            rigRef.current.leftKnee.rotation.x = swingL > 0 ? swingL * 0.62 : 0;
+          }
+          if (rigRef.current.rightKnee) {
+            rigRef.current.rightKnee.rotation.x = swingR > 0 ? swingR * 0.62 : 0;
+          }
 
-        // Follow spotlight tracks avatar
-        if (lightsRef.current) {
-          lightsRef.current.mainSpot.target = avatarGroupRef.current;
+          // Catwalk cross-over steps
+          rigRef.current.leftLeg.rotation.z = 0.02 + Math.sin(walkPhase) * 0.025;
+          rigRef.current.rightLeg.rotation.z = -0.02 + Math.sin(walkPhase) * 0.025;
+
+          // Pelvic List & Hip Sway
+          const hipSway = Math.sin(walkPhase) * 0.085;
+          const pelvisYaw = Math.cos(walkPhase) * 0.055;
+          rigRef.current.torso.rotation.z = hipSway;
+          rigRef.current.torso.rotation.y = pelvisYaw;
+
+          // Upper Body & Head Counter-Rotation
+          rigRef.current.head.rotation.z = -hipSway * 0.45;
+          rigRef.current.head.rotation.y = -pelvisYaw * 0.65;
+
+          // Subtle Center-of-Mass vertical bob
+          avatarGroupRef.current.position.y = Math.abs(Math.sin(walkPhase)) * 0.028;
+
+          // Natural Arm & Forearm Swings
+          rigRef.current.leftArm.rotation.x = -Math.sin(walkPhase) * 0.18;
+          rigRef.current.leftArm.rotation.z = 0.06 + Math.abs(hipSway) * 0.04;
+          if (rigRef.current.leftElbow) {
+            rigRef.current.leftElbow.rotation.x = 0.22 + Math.max(0, -Math.sin(walkPhase)) * 0.12;
+          }
+
+          rigRef.current.rightArm.rotation.x = Math.sin(walkPhase) * 0.18;
+          rigRef.current.rightArm.rotation.z = -0.06 - Math.abs(hipSway) * 0.04;
+          if (rigRef.current.rightElbow) {
+            rigRef.current.rightElbow.rotation.x = 0.22 + Math.max(0, Math.sin(walkPhase)) * 0.12;
+          }
+
+          // Garment Fabric Physics
+          if (rigRef.current.skirtMesh) {
+            rigRef.current.skirtMesh.rotation.z = -hipSway * 1.15;
+            rigRef.current.skirtMesh.rotation.x = Math.sin(walkPhase * 2) * 0.035;
+          }
+
+          if (rigRef.current.dupattaMesh) {
+            rigRef.current.dupattaMesh.rotation.z = Math.sin(walkPhase * 1.5) * 0.08;
+            rigRef.current.dupattaMesh.rotation.x = 0.12 + Math.cos(walkPhase) * 0.08;
+          }
+
+          if (rigRef.current.leftGhararaBell) {
+            rigRef.current.leftGhararaBell.rotation.z = Math.sin(walkPhase) * 0.12;
+          }
+          if (rigRef.current.rightGhararaBell) {
+            rigRef.current.rightGhararaBell.rotation.z = -Math.sin(walkPhase) * 0.12;
+          }
+
+          if (rigRef.current.kaftanLeftWing) {
+            rigRef.current.kaftanLeftWing.rotation.z = Math.sin(walkPhase * 1.8) * 0.15;
+          }
+          if (rigRef.current.kaftanRightWing) {
+            rigRef.current.kaftanRightWing.rotation.z = -Math.sin(walkPhase * 1.8) * 0.15;
+          }
+        } else {
+          // Couture Pause at Runway End (Poised stance for cameras)
+          rigRef.current.leftLeg.rotation.x *= 0.88;
+          rigRef.current.rightLeg.rotation.x *= 0.88;
+          if (rigRef.current.leftKnee) rigRef.current.leftKnee.rotation.x *= 0.88;
+          if (rigRef.current.rightKnee) rigRef.current.rightKnee.rotation.x *= 0.88;
+          rigRef.current.leftArm.rotation.x *= 0.88;
+          rigRef.current.rightArm.rotation.x *= 0.88;
+          rigRef.current.torso.rotation.z = THREE.MathUtils.lerp(rigRef.current.torso.rotation.z, 0.08, 0.06);
+          rigRef.current.torso.rotation.y *= 0.88;
+          rigRef.current.head.rotation.z *= 0.88;
+          rigRef.current.head.rotation.y *= 0.88;
+          avatarGroupRef.current.position.y = THREE.MathUtils.lerp(avatarGroupRef.current.position.y, 0, 0.1);
+          if (rigRef.current.skirtMesh) {
+            rigRef.current.skirtMesh.rotation.z *= 0.88;
+            rigRef.current.skirtMesh.rotation.x *= 0.88;
+          }
         }
-      } else if (!isPlayingRef.current && rigRef.current) {
-        // Smoothly settle into standing pose
+      } else if (!isPlayingRef.current && rigRef.current && avatarGroupRef.current) {
+        // Paused: smoothly settle into poised resting stance
         rigRef.current.leftLeg.rotation.x *= 0.92;
         rigRef.current.rightLeg.rotation.x *= 0.92;
+        if (rigRef.current.leftKnee) rigRef.current.leftKnee.rotation.x *= 0.92;
+        if (rigRef.current.rightKnee) rigRef.current.rightKnee.rotation.x *= 0.92;
         rigRef.current.leftArm.rotation.x *= 0.92;
         rigRef.current.rightArm.rotation.x *= 0.92;
         rigRef.current.torso.rotation.z *= 0.92;
         rigRef.current.torso.rotation.y *= 0.92;
+        avatarGroupRef.current.position.y = THREE.MathUtils.lerp(avatarGroupRef.current.position.y, 0, 0.1);
         if (rigRef.current.skirtMesh) {
           rigRef.current.skirtMesh.rotation.z *= 0.92;
+        }
+      }
+
+      // Smooth Camera & OrbitControls Following
+      if (avatarGroupRef.current) {
+        const currentAvatarZ = avatarGroupRef.current.position.z;
+        const targetLookAt = new THREE.Vector3(0, 1.25, currentAvatarZ);
+
+        // OrbitControls smoothly follows model along runway
+        controls.target.lerp(targetLookAt, 0.08);
+
+        // Camera Position Following
+        if (targetCameraOffsetRef.current && cameraRef.current) {
+          const desiredPos = new THREE.Vector3(
+            targetCameraOffsetRef.current.x,
+            targetCameraOffsetRef.current.y,
+            currentAvatarZ + targetCameraOffsetRef.current.z
+          );
+          cameraRef.current.position.lerp(desiredPos, 0.08);
+        } else if (cameraRef.current && isPlayingRef.current) {
+          const deltaZ = currentAvatarZ - lastAvatarZ;
+          cameraRef.current.position.z += deltaZ * 0.88;
+        }
+        lastAvatarZ = currentAvatarZ;
+
+        // Dynamic Spotlight tracking
+        if (lightsRef.current) {
+          lightsRef.current.mainSpot.target.position.set(0, 1.25, currentAvatarZ);
+          lightsRef.current.mainSpot.target.updateMatrixWorld();
         }
       }
 
@@ -1137,41 +1349,41 @@ export const RunwaySection: React.FC = () => {
     }
   }, [lightingMode]);
 
-  // Smooth Camera Perspective Presets (Front, Left, Right, Back in 3D space)
+  // Smooth Camera Perspective Presets (Front, Left, Right, Back dynamically tracking avatar)
   const setCameraAngle = (angle: 'Front' | 'Left' | 'Right' | 'Back') => {
     setActiveAngle(angle);
     const dist = 4.8;
     const y = 1.6;
 
-    let target = new THREE.Vector3(0, y, dist);
+    let offset = new THREE.Vector3(0, y, dist);
     switch (angle) {
       case 'Front':
-        target = new THREE.Vector3(0, y, dist);
+        offset = new THREE.Vector3(0, y, dist);
         break;
       case 'Left':
-        target = new THREE.Vector3(-dist, y, 0);
+        offset = new THREE.Vector3(-dist, y, 0);
         break;
       case 'Right':
-        target = new THREE.Vector3(dist, y, 0);
+        offset = new THREE.Vector3(dist, y, 0);
         break;
       case 'Back':
-        target = new THREE.Vector3(0, y, -dist);
+        offset = new THREE.Vector3(0, y, -dist);
         break;
     }
-    targetCameraPosRef.current = target;
+    targetCameraOffsetRef.current = offset;
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
     if (!cameraRef.current || !controlsRef.current) return;
-    const factor = direction === 'in' ? 0.82 : 1.22;
-    cameraRef.current.position.multiplyScalar(factor);
+    const factor = direction === 'in' ? 0.85 : 1.18;
+    const target = controlsRef.current.target;
+    cameraRef.current.position.sub(target).multiplyScalar(factor).add(target);
     controlsRef.current.update();
   };
 
   const handleResetCamera = () => {
-    if (!cameraRef.current || !controlsRef.current) return;
-    targetCameraPosRef.current = new THREE.Vector3(0, 1.6, 4.8);
     setActiveAngle('Front');
+    targetCameraOffsetRef.current = new THREE.Vector3(0, 1.6, 4.8);
   };
 
   return (
