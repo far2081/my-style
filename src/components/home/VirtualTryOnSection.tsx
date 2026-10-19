@@ -6,7 +6,7 @@ import { CameraModal } from '../common/CameraModal';
 import { Sparkles, RotateCw, Check, Info, ChevronLeft, ChevronRight, MoveHorizontal, Camera, Upload, X, Search, Filter, Eye, Maximize2, Split, AlertCircle } from 'lucide-react';
 import { Product } from '../../types';
 import { aiProviders } from '../../services/aiProvider';
-import { normalizeTo3x4Portrait } from '../../utils/imageNormalization';
+import { normalizeTo3x4Portrait, assessPhotoFraming } from '../../utils/imageNormalization';
 
 type GarmentViewAngle = 'front' | 'left' | 'right' | 'back';
 
@@ -164,9 +164,9 @@ export const VirtualTryOnSection: React.FC = () => {
 
   // Available sample models (Full-length standing atelier models for complete silhouette try-on)
   const sampleModels = [
-    { id: 'm1', name: 'Zoya (Warm Ivory)', img: '/images/categories/Casual/dress_01.jpg' },
-    { id: 'm2', name: 'Ayla (Deep Wheatish)', img: '/images/categories/Festive/dress_01.jpg' },
-    { id: 'm3', name: 'Mahnoor (Porcelain)', img: '/images/categories/Party/dress_01.jpg' },
+    { id: 'm1', name: 'Zoya (Warm Ivory)', img: '/images/categories/Barat/dress_01.jpeg' },
+    { id: 'm2', name: 'Ayla (Deep Wheatish)', img: '/images/categories/Barat/dress_02.jpeg' },
+    { id: 'm3', name: 'Mahnoor (Porcelain)', img: '/images/categories/Walima/dress_01.jpg' },
   ];
 
   const [selectedSample, setSelectedSample] = useState(sampleModels[0].img);
@@ -229,17 +229,19 @@ export const VirtualTryOnSection: React.FC = () => {
     img.onload = () => {
       const w = img.naturalWidth || 640;
       const h = img.naturalHeight || 480;
-      const ratio = h / w;
 
-      // Validate resolution & completeness
+      // Validate resolution & completeness using assessPhotoFraming
       if (w < 256 || h < 256) {
         setFramingNotice('Image resolution is very low (< 256px). Please retake or upload a higher resolution photo for authentic fitting.');
-      } else if (ratio < 0.8) {
-        setFramingNotice('Wide landscape frame detected. Full-length dress fitting requires an upright portrait (standing 6–8 ft back) so head, torso, and feet are all in frame.');
-      } else if (ratio < 1.25) {
-        setFramingNotice('Knee/mid-length crop detected. To drape the full skirt down to the hemline, please step back so your entire body from head to shoes is visible.');
       } else {
-        setFramingNotice(null);
+        const assessment = assessPhotoFraming(w, h);
+        if (assessment.isCloseUpOrBust) {
+          setFramingNotice(assessment.message);
+        } else if (assessment.framingType === 'three_quarter') {
+          setFramingNotice(assessment.message);
+        } else {
+          setFramingNotice(null);
+        }
       }
 
       // Default to fullbody fitting mode so customerPhoto is used as complete avatar
@@ -247,6 +249,15 @@ export const VirtualTryOnSection: React.FC = () => {
     };
     img.src = dataUrl;
   };
+
+  // Automatically assess framing when customerPhoto updates from any section
+  useEffect(() => {
+    if (customerPhoto) {
+      detectPhotoFraming(customerPhoto);
+    } else {
+      setFramingNotice(null);
+    }
+  }, [customerPhoto]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

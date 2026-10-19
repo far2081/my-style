@@ -422,9 +422,9 @@ export const RunwaySection: React.FC = () => {
         garmentGroup.add(bodice);
 
         // Gold neckline trim
-        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.016, 12, 24), goldZariMaterial);
+        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.015, 12, 24), goldZariMaterial);
         neckTrim.rotation.x = Math.PI / 2;
-        neckTrim.position.y = 0.2;
+        neckTrim.position.y = 0.16;
         garmentGroup.add(neckTrim);
 
         // Empire waist gold trim
@@ -488,9 +488,9 @@ export const RunwaySection: React.FC = () => {
         garmentGroup.add(placket);
 
         // Neckline trim
-        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.015, 12, 24), goldZariMaterial);
+        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.015, 12, 24), goldZariMaterial);
         neckTrim.rotation.x = Math.PI / 2;
-        neckTrim.position.y = 0.2;
+        neckTrim.position.y = 0.16;
         garmentGroup.add(neckTrim);
 
         // Kurta hem border
@@ -547,9 +547,9 @@ export const RunwaySection: React.FC = () => {
         garmentGroup.add(belt);
 
         // Neckline detail
-        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.016, 12, 24), goldZariMaterial);
+        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.015, 12, 24), goldZariMaterial);
         neckTrim.rotation.x = Math.PI / 2;
-        neckTrim.position.y = 0.2;
+        neckTrim.position.y = 0.16;
         garmentGroup.add(neckTrim);
 
         // Hemline trim
@@ -589,9 +589,9 @@ export const RunwaySection: React.FC = () => {
         garmentGroup.add(bodice);
 
         // Gold neckline trim
-        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.016, 12, 24), goldZariMaterial);
+        const neckTrim = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.015, 12, 24), goldZariMaterial);
         neckTrim.rotation.x = Math.PI / 2;
-        neckTrim.position.y = 0.2;
+        neckTrim.position.y = 0.16;
         garmentGroup.add(neckTrim);
 
         // Midriff waist trim
@@ -792,59 +792,70 @@ export const RunwaySection: React.FC = () => {
     const garmentGroup = new THREE.Group();
     torso.add(garmentGroup);
 
-    // Head & Neck
-    const neckGeo = new THREE.CylinderGeometry(0.065, 0.075, 0.12, 16);
+    // Clavicle & Upper Chest Transition (bridges neck to torso and shoulders naturally)
+    const clavicleGeo = new THREE.CylinderGeometry(0.065, 0.175, 0.08, 20);
+    const clavicleMesh = new THREE.Mesh(clavicleGeo, skinMaterial);
+    clavicleMesh.position.y = 0.13;
+    torso.add(clavicleMesh);
+
+    // Head & Neck (Anatomically calibrated: slender neck seamlessly connecting chin to clavicle)
+    const neckGeo = new THREE.CylinderGeometry(0.048, 0.056, 0.075, 18);
     const neck = new THREE.Mesh(neckGeo, skinMaterial);
-    neck.position.y = 0.26;
+    neck.position.y = 0.19;
     torso.add(neck);
 
     const head = new THREE.Group();
-    head.position.y = 0.42;
+    head.position.y = 0.29;
     torso.add(head);
 
-    const faceGeo = new THREE.SphereGeometry(0.11, 24, 24);
-    faceGeo.scale(1.0, 1.25, 1.05);
+    const faceGeo = new THREE.SphereGeometry(0.082, 24, 24);
+    faceGeo.scale(0.95, 1.10, 1.0);
     const faceMaterial = skinMaterial.clone();
     const faceMesh = new THREE.Mesh(faceGeo, faceMaterial);
     faceMesh.castShadow = true;
     head.add(faceMesh);
 
     // Hair Updo (Mughal-style elegant chignon)
-    const hairGeo = new THREE.SphereGeometry(0.12, 18, 18);
-    hairGeo.scale(1.05, 1.1, 1.15);
+    const hairGeo = new THREE.SphereGeometry(0.088, 18, 18);
+    hairGeo.scale(1.02, 1.08, 1.12);
     const hairMesh = new THREE.Mesh(hairGeo, hairMaterial);
-    hairMesh.position.set(0, 0.04, -0.04);
+    hairMesh.position.set(0, 0.025, -0.025);
     head.add(hairMesh);
 
-    const bunGeo = new THREE.SphereGeometry(0.065, 16, 16);
+    const bunGeo = new THREE.SphereGeometry(0.05, 16, 16);
     const bun = new THREE.Mesh(bunGeo, hairMaterial);
-    bun.position.set(0, 0.02, -0.14);
+    bun.position.set(0, 0.015, -0.10);
     head.add(bun);
 
     // Gold Maang Tikka
-    const tikkaGeo = new THREE.ConeGeometry(0.018, 0.035, 8);
+    const tikkaGeo = new THREE.ConeGeometry(0.014, 0.028, 8);
     const tikka = new THREE.Mesh(tikkaGeo, goldZariMaterial);
-    tikka.position.set(0, 0.08, 0.11);
+    tikka.position.set(0, 0.065, 0.085);
     tikka.rotation.x = -Math.PI / 3;
     head.add(tikka);
 
-    // Arms & Hands
-    const armGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.48, 14);
+    // Arms & Hands (Natural shoulder width 0.37m, rounded deltoid caps)
+    const armGeo = new THREE.CylinderGeometry(0.036, 0.028, 0.46, 14);
+    const shoulderGeo = new THREE.SphereGeometry(0.04, 14, 14);
 
     const leftArm = new THREE.Group();
-    leftArm.position.set(-0.25, 0.18, 0);
+    leftArm.position.set(-0.185, 0.14, 0);
     const leftArmMesh = new THREE.Mesh(armGeo, skinMaterial);
-    leftArmMesh.position.y = -0.24;
+    leftArmMesh.position.y = -0.23;
     leftArmMesh.castShadow = true;
     leftArm.add(leftArmMesh);
+    const leftShoulderCap = new THREE.Mesh(shoulderGeo, skinMaterial);
+    leftArm.add(leftShoulderCap);
     torso.add(leftArm);
 
     const rightArm = new THREE.Group();
-    rightArm.position.set(0.25, 0.18, 0);
+    rightArm.position.set(0.185, 0.14, 0);
     const rightArmMesh = new THREE.Mesh(armGeo, skinMaterial);
-    rightArmMesh.position.y = -0.24;
+    rightArmMesh.position.y = -0.23;
     rightArmMesh.castShadow = true;
     rightArm.add(rightArmMesh);
+    const rightShoulderCap = new THREE.Mesh(shoulderGeo, skinMaterial);
+    rightArm.add(rightShoulderCap);
     torso.add(rightArm);
 
     // Legs

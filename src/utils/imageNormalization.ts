@@ -10,6 +10,56 @@ export interface NormalizationOptions {
   quality?: number;
 }
 
+export interface FramingAssessment {
+  aspectRatio: number;
+  framingType: 'full_body' | 'three_quarter' | 'bust_or_closeup';
+  isCloseUpOrBust: boolean;
+  isLandscape: boolean;
+  message: string;
+}
+
+/**
+ * Assess whether a customer photo contains a full-body standing silhouette
+ * or a close-up/bust/landscape framing that may distort Try-On proportions.
+ */
+export function assessPhotoFraming(width: number, height: number): FramingAssessment {
+  const ratio = height / width; // vertical aspect ratio
+
+  if (ratio < 0.95) {
+    return {
+      aspectRatio: ratio,
+      framingType: 'bust_or_closeup',
+      isCloseUpOrBust: true,
+      isLandscape: true,
+      message: 'Landscape photo detected. For authentic full-length outfit draping, please upload or capture a vertical portrait showing your complete silhouette from head to shoes.',
+    };
+  } else if (ratio < 1.20) {
+    return {
+      aspectRatio: ratio,
+      framingType: 'bust_or_closeup',
+      isCloseUpOrBust: true,
+      isLandscape: false,
+      message: 'Square or bust-level portrait detected. The AI Try-On engine requires your full standing silhouette (head to shoes) to drape floor-length lehengas and gowns without neck or proportion distortion.',
+    };
+  } else if (ratio < 1.40) {
+    return {
+      aspectRatio: ratio,
+      framingType: 'three_quarter',
+      isCloseUpOrBust: false,
+      isLandscape: false,
+      message: 'Three-quarter portrait detected. Garment will fit your visible torso and knees; for floor-length gowns, include your full standing height.',
+    };
+  } else {
+    return {
+      aspectRatio: ratio,
+      framingType: 'full_body',
+      isCloseUpOrBust: false,
+      isLandscape: false,
+      message: 'Optimal full-length standing portrait detected.',
+    };
+  }
+}
+
 export async function normalizeTo3x4Portrait(
   imageSource: string,
   options: NormalizationOptions = {}
@@ -81,21 +131,46 @@ export async function normalizeTo3x4Portrait(
           // Draw crisp full-body figure centered with headroom & feet clearance
           ctx.drawImage(img, 0, 0, w, h, dx, vPad, drawW, drawH);
         }
-        // Case 3: Source is wider than 3:4 (e.g. 4:3 or landscape webcam)
+        // Case 3: Source is wider than 3:4 (e.g. square, 4:3, or landscape)
         else {
-          // Check if it's landscape (user centered in frame)
-          const sWidth = Math.round(h * targetRatio);
-          const sx = Math.round((w - sWidth) / 2);
+          // If square or landscape (h/w < 1.15), stretching a face crop to fill full height causes neck elongation.
+          // Non-destructive ingestion: contain entire image with ambient blurred background.
+          const vertRatio = h / w;
+          if (vertRatio < 1.15) {
+            // Ambient backdrop
+            try {
+              ctx.save();
+              ctx.filter = 'blur(25px)';
+              ctx.drawImage(img, -20, -20, targetWidth + 40, targetHeight + 40);
+              ctx.restore();
+            } catch {
+              // fallback
+            }
 
-          if (sx >= 0 && sWidth <= w) {
-            // Center 3:4 crop: captures the centered person head-to-toe
-            ctx.drawImage(img, sx, 0, sWidth, h, 0, 0, targetWidth, targetHeight);
+            ctx.fillStyle = 'rgba(26, 17, 24, 0.45)';
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+            // Fit width with headroom
+            const drawW = Math.round(targetWidth * 0.94);
+            const drawH = Math.round(drawW / sourceRatio);
+            const dx = Math.round((targetWidth - drawW) / 2);
+            const dy = Math.max(10, Math.round((targetHeight - drawH) / 2));
+            ctx.drawImage(img, 0, 0, w, h, dx, dy, drawW, drawH);
           } else {
-            // Fallback contain with vertical centering
-            const drawW = targetWidth;
-            const drawH = Math.round(targetWidth / sourceRatio);
-            const dy = Math.round((targetHeight - drawH) / 2);
-            ctx.drawImage(img, 0, 0, w, h, 0, dy, drawW, drawH);
+            // Standing portrait slightly wider than 3:4 (e.g. 2:3 or 3:4.5)
+            // Center crop with subtle margin
+            const sWidth = Math.round(h * targetRatio);
+            const sx = Math.round((w - sWidth) / 2);
+
+            if (sx >= 0 && sWidth <= w) {
+              ctx.drawImage(img, sx, 0, sWidth, h, 0, 0, targetWidth, targetHeight);
+            } else {
+              // Contain
+              const drawW = targetWidth;
+              const drawH = Math.round(targetWidth / sourceRatio);
+              const dy = Math.round((targetHeight - drawH) / 2);
+              ctx.drawImage(img, 0, 0, w, h, 0, dy, drawW, drawH);
+            }
           }
         }
 
