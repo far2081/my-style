@@ -93,7 +93,7 @@ interface AppContextType {
   isTryOnGenerating: boolean;
   tryOnError: string | null;
   setTryOnError: (err: string | null) => void;
-  generateTryOnForProduct: (product: Product, personPhotoOverride?: string) => Promise<boolean>;
+  generateTryOnForProduct: (product: Product, personPhotoOverride?: string, workflowMode?: 'standard_vton' | 'bridal_complete_look') => Promise<boolean>;
   clearTryOnResult: () => void;
 }
 
@@ -275,7 +275,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearTryOnResult();
   };
 
-  const generateTryOnForProduct = async (product: Product, personPhotoOverride?: string): Promise<boolean> => {
+  const generateTryOnForProduct = async (
+    product: Product,
+    personPhotoOverride?: string,
+    workflowMode?: 'standard_vton' | 'bridal_complete_look'
+  ): Promise<boolean> => {
     const rawPhoto = personPhotoOverride || customerPhoto;
     if (!rawPhoto) {
       setTryOnError('Please upload or capture your photo first before generating an AI Try-On.');
@@ -311,6 +315,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Normalize person image to 3:4 portrait canvas (768x1024) with vertical headroom and feet clearance
       const normalizedAvatar = await normalizeTo3x4Portrait(photoToUse);
 
+      const isBridal =
+        workflowMode === 'bridal_complete_look' ||
+        (workflowMode !== 'standard_vton' && (
+          product.category === 'Bridal' ||
+          ['barat', 'nikah', 'valima', 'walima'].some((o) =>
+            (product.occasion || product.event || product.category || '').toLowerCase().includes(o)
+          )
+        ));
+
       const res = await aiProviders.tryon.generateTryOn({
         customerPhotoUrl: normalizedAvatar,
         customerFaceUrl: photoToUse.startsWith('data:') ? photoToUse : undefined,
@@ -325,6 +338,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fabric: product.fabric,
         description: product.description,
         perspectiveAngle: 'Front',
+        workflowMode: isBridal ? 'bridal_complete_look' : 'standard_vton',
       });
 
       setIsTryOnGenerating(false);
