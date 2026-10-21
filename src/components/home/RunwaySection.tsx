@@ -4,7 +4,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useApp } from '../../context/AppContext';
 import { PRODUCTS_DATA } from '../../data/products';
 import { Product } from '../../types';
-import { hasBridalHeadDupatta } from '../../utils/bridalIdentityEngine';
 import {
   Play,
   Pause,
@@ -237,7 +236,6 @@ export const RunwaySection: React.FC = () => {
     rightGhararaBell?: THREE.Mesh;
     skirtMesh?: THREE.Mesh;
     dupattaMesh?: THREE.Mesh;
-    headDupattaGroup?: THREE.Group;
     kaftanLeftWing?: THREE.Mesh;
     kaftanRightWing?: THREE.Mesh;
     currentSilhouette?: PakistaniSilhouetteType;
@@ -645,17 +643,6 @@ export const RunwaySection: React.FC = () => {
 
     if (rigRef.current) {
       rigRef.current.currentSilhouette = silhouette;
-      if (rigRef.current.headDupattaGroup) {
-        const isBridalHead = hasBridalHeadDupatta(currentOutfit) || (silhouette === 'lehenga' && currentOutfit.category === 'Bridal');
-        rigRef.current.headDupattaGroup.visible = isBridalHead;
-        if (isBridalHead) {
-          rigRef.current.headDupattaGroup.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.name === 'headDupattaFabric') {
-              child.material = sheerDupattaMaterial;
-            }
-          });
-        }
-      }
     }
   };
 
@@ -852,39 +839,6 @@ export const RunwaySection: React.FC = () => {
     tikka.rotation.x = -Math.PI / 3;
     head.add(tikka);
 
-    // Bridal Head Dupatta / Royal Chaddar (draped gracefully over the head, framing face, trailing down shoulders)
-    const headDupattaGroup = new THREE.Group();
-    headDupattaGroup.name = 'headDupattaGroup';
-
-    // 1. Crown Veil over hair
-    const crownGeo = new THREE.SphereGeometry(0.098, 20, 20, 0, Math.PI * 2, 0, Math.PI * 0.70);
-    crownGeo.scale(1.04, 1.14, 1.18);
-    const crownMesh = new THREE.Mesh(crownGeo, skinMaterial);
-    crownMesh.name = 'headDupattaFabric';
-    crownMesh.position.set(0, 0.02, -0.015);
-    crownMesh.castShadow = true;
-    headDupattaGroup.add(crownMesh);
-
-    // 2. Forehead Gota-Kinari / Kiran Border framing the hairline
-    const foreheadGota = new THREE.Mesh(
-      new THREE.TorusGeometry(0.092, 0.007, 8, 24, Math.PI * 0.85),
-      goldZariMaterial
-    );
-    foreheadGota.rotation.x = Math.PI * 0.18;
-    foreheadGota.position.set(0, 0.062, 0.038);
-    headDupattaGroup.add(foreheadGota);
-
-    // 3. Trailing Veil down the neck and shoulders
-    const trailingVeilGeo = new THREE.CylinderGeometry(0.10, 0.22, 0.38, 16, 4, true);
-    const trailingVeil = new THREE.Mesh(trailingVeilGeo, skinMaterial);
-    trailingVeil.name = 'headDupattaFabric';
-    trailingVeil.position.set(0, -0.14, -0.05);
-    trailingVeil.castShadow = true;
-    headDupattaGroup.add(trailingVeil);
-
-    headDupattaGroup.visible = false;
-    head.add(headDupattaGroup);
-
     // Articulated Arms (Natural shoulder width 0.37m, rounded deltoid, articulated elbow)
     const upperArmGeo = new THREE.CylinderGeometry(0.034, 0.029, 0.23, 14);
     const forearmGeo = new THREE.CylinderGeometry(0.028, 0.022, 0.23, 14);
@@ -1005,7 +959,6 @@ export const RunwaySection: React.FC = () => {
       rightElbow,
       torso,
       head,
-      headDupattaGroup,
       faceMaterial,
       garmentGroup,
     };
@@ -1298,32 +1251,10 @@ export const RunwaySection: React.FC = () => {
       rightArm
     );
 
-    // Face Texture: Only use customerPhoto; never project full garments onto the face
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.crossOrigin = 'anonymous';
-
-    if (customerPhoto) {
-      textureLoader.load(
-        customerPhoto,
-        (faceTex) => {
-          faceTex.colorSpace = THREE.SRGBColorSpace;
-          faceTex.wrapS = THREE.ClampToEdgeWrapping;
-          faceTex.wrapT = THREE.ClampToEdgeWrapping;
-          faceMaterial.map = faceTex;
-          faceMaterial.roughness = 0.45;
-          faceMaterial.needsUpdate = true;
-        },
-        undefined,
-        () => {
-          faceMaterial.map = null;
-          faceMaterial.needsUpdate = true;
-        }
-      );
-    } else {
-      faceMaterial.map = null;
-      faceMaterial.roughness = 0.55;
-      faceMaterial.needsUpdate = true;
-    }
+    // Head, face, and hair use dedicated procedural materials; never apply customer photo or try-on image as a texture onto the head mesh
+    faceMaterial.map = null;
+    faceMaterial.roughness = 0.55;
+    faceMaterial.needsUpdate = true;
 
     // Dynamic body structure scaling
     if (customerBodyStructure && rigRef.current) {
@@ -1345,7 +1276,7 @@ export const RunwaySection: React.FC = () => {
         torso.scale.set(1.14, 1.0, 1.1);
       }
     }
-  }, [currentOutfit, silhouetteInfo, customerPhoto, customerBodyStructure]);
+  }, [currentOutfit, silhouetteInfo, customerBodyStructure]);
 
   // Lighting Mode Changes
   useEffect(() => {
@@ -1608,12 +1539,7 @@ export const RunwaySection: React.FC = () => {
             {/* Center Bottom Procedural Transparency Indicator Badge */}
             <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 bg-burgundy/85 backdrop-blur-md border border-champagne/30 px-3.5 py-1.5 rounded-xl text-[10px] font-brand tracking-wider uppercase text-champagne shadow-luxury flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-champagne" />
-              <span>3D Catwalk Simulation: {silhouetteInfo.label}</span>
-              {hasBridalHeadDupatta(currentOutfit) && (
-                <span className="ml-1 px-1.5 py-0.5 rounded bg-champagne/20 text-champagne font-bold text-[9px] border border-champagne/40">
-                  Head Dupatta Drape Active
-                </span>
-              )}
+              <span>3D Silhouette: {silhouetteInfo.label}</span>
             </div>
 
             {/* 3D Orbit Drag Hint Overlay */}

@@ -4,7 +4,6 @@
 
 import { PRODUCTS_DATA } from '../data/products';
 import { Product } from '../types';
-import { generateBridalCompleteLook, hasBridalHeadDupatta } from '../utils/bridalIdentityEngine';
 
 declare const process: any;
 
@@ -331,7 +330,6 @@ export interface TryOnRequest {
   fabric?: string;
   description?: string;
   perspectiveAngle?: 'Front' | 'Side' | 'Back';
-  workflowMode?: 'standard_vton' | 'bridal_complete_look';
 }
 
 export interface TryOnResponse {
@@ -373,51 +371,6 @@ export class ReplicateVTONProvider implements TryOnProvider {
       };
     }
 
-    // 1. Bridal Complete Look Identity Pipeline:
-    // If request is for a bridal look (Barat, Nikah, Valima, Bridal Couture), preserve 100% of the
-    // selected bridal reference (head dupatta, matha patti, bridal jewelry, lehenga) while incorporating
-    // customer's facial identity, avoiding the destructive head/hair stripping of standard clothing inpainters.
-    const isBridal =
-      req.workflowMode === 'bridal_complete_look' ||
-      (req.workflowMode !== 'standard_vton' && (
-        (req.category || '').toLowerCase().includes('bridal') ||
-        (req.dressType || '').toLowerCase().includes('lehenga') ||
-        (req.dressType || '').toLowerCase().includes('gharara') ||
-        ['barat', 'nikah', 'valima', 'walima'].some((o) => (req.dressType || req.category || '').toLowerCase().includes(o))
-      ));
-
-    if (isBridal && typeof window !== 'undefined') {
-      try {
-        console.log('[Bridal Complete Look Pipeline Initiated]', {
-          productId: req.productId,
-          garmentImageUrl: req.garmentImageUrl.slice(0, 60),
-        });
-        const matchedProduct = PRODUCTS_DATA.find((p) => p.id === req.productId);
-        const bridalResult = await generateBridalCompleteLook(
-          req.customerPhotoUrl,
-          req.garmentImageUrl,
-          matchedProduct
-        );
-
-        return {
-          jobId,
-          provider: 'StyleMira Bridal Identity Engine (Complete Look Preservation)',
-          status: 'succeeded',
-          estimatedCostUsd: 0.05,
-          durationMs: 1200,
-          timestamp,
-          result: {
-            renderedImageUrl: bridalResult.renderedImageUrl,
-            fitAssessment: bridalResult.fitAssessment,
-            confidenceScore: 0.99,
-            drapePhysics: 'Bespoke bridal drape with 100% preservation of head dupatta drape, matha patti, heavy jewelry, and hand-embroidered zardozi foundations.',
-          },
-        };
-      } catch (bridalErr: any) {
-        console.warn('[Bridal Identity Engine Notice, falling back to server VTON]:', bridalErr);
-      }
-    }
-
     try {
       const response = await fetch('/api/vton-tryon', {
         method: 'POST',
@@ -437,7 +390,6 @@ export class ReplicateVTONProvider implements TryOnProvider {
           color: req.color,
           fabric: req.fabric,
           description: req.description,
-          workflow_mode: req.workflowMode || 'standard_vton',
         }),
       });
 
