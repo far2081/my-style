@@ -412,26 +412,26 @@ export const VirtualTryOnSection: React.FC = () => {
   };
 
   // Resolve currently displayed image:
-  // If personalized try-on is active -> display genuine generated try-on
-  // If catalog dress is active -> always display the exact selected dress
+  // If personalized try-on is active and Front is selected -> display genuine generated try-on
+  // If user clicks Left/Right/Back in try-on mode -> show genuine catalog angle reference
+  // If catalog dress is active -> display genuine catalog angle
   const getDisplayedImage = () => {
-    if (renderedResultUrl) {
+    if (renderedResultUrl && activeView === 'front') {
       return renderedResultUrl;
     }
-    return currentDress.images.front;
+    const foundView = genuineViews.find((v) => v.id === activeView);
+    return foundView?.url || currentDress.images.front;
   };
 
   // View navigation helpers for catalog views
   const currentViewIndex = genuineViews.findIndex((v) => v.id === activeView);
 
   const handleNextView = () => {
-    if (renderedResultUrl) return;
     const nextIndex = (currentViewIndex + 1) % genuineViews.length;
     setActiveView(genuineViews[nextIndex].id);
   };
 
   const handlePrevView = () => {
-    if (renderedResultUrl) return;
     const prevIndex = (currentViewIndex - 1 + genuineViews.length) % genuineViews.length;
     setActiveView(genuineViews[prevIndex].id);
   };
@@ -897,41 +897,87 @@ export const VirtualTryOnSection: React.FC = () => {
                 /* Mode 1: Personalized Try-On Result Active (Strictly 1 genuine frontal image) */
                 <div className="space-y-3">
                   <div className="bg-plum/80 border border-champagne/20 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-burgundy text-champagne font-bold border border-champagne/40 px-3 py-1.5 rounded-lg text-xs font-brand uppercase tracking-wider flex items-center gap-1.5 shadow-gold-subtle">
-                        <Sparkles className="w-3.5 h-3.5 text-champagne" />
-                        <span>Your Try-On (Front View)</span>
-                      </span>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('front')}
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                          activeView === 'front'
+                            ? 'bg-gradient-to-r from-champagne via-champagne-light to-champagne text-plum font-bold shadow-gold-subtle'
+                            : 'text-ivory/70 hover:text-champagne hover:bg-plum-dark/60'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Front (Your Try-On)</span>
+                      </button>
 
-                      {/* Side-by-side comparison toggle */}
-                      <div className="flex items-center bg-plum-dark/90 border border-champagne/25 rounded-lg p-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setCompareMode('single')}
-                          className={`px-2.5 py-1 rounded text-[10px] font-brand uppercase tracking-wider transition-all ${
-                            compareMode === 'single'
-                              ? 'bg-champagne text-plum font-bold shadow-sm'
-                              : 'text-ivory/70 hover:text-champagne'
-                          }`}
-                        >
-                          Single View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCompareMode('split')}
-                          className={`px-2.5 py-1 rounded text-[10px] font-brand uppercase tracking-wider transition-all flex items-center gap-1 ${
-                            compareMode === 'split'
-                              ? 'bg-champagne text-plum font-bold shadow-sm'
-                              : 'text-ivory/70 hover:text-champagne'
-                          }`}
-                        >
-                          <Split className="w-3 h-3" />
-                          <span>Compare Original</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('left')}
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                          activeView === 'left'
+                            ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-gold-subtle'
+                            : 'text-ivory/70 hover:text-champagne hover:bg-plum-dark/60'
+                        }`}
+                      >
+                        <span>Left Profile (Dress Ref)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('right')}
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                          activeView === 'right'
+                            ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-gold-subtle'
+                            : 'text-ivory/70 hover:text-champagne hover:bg-plum-dark/60'
+                        }`}
+                      >
+                        <span>Right Profile (Dress Ref)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('back')}
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-brand uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                          activeView === 'back'
+                            ? 'bg-burgundy text-champagne font-bold border border-champagne/40 shadow-gold-subtle'
+                            : 'text-ivory/70 hover:text-champagne hover:bg-plum-dark/60'
+                        }`}
+                      >
+                        <span>Back View (Dress Ref)</span>
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* Side-by-side comparison toggle */}
+                      {activeView === 'front' && (
+                        <div className="flex items-center bg-plum-dark/90 border border-champagne/25 rounded-lg p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setCompareMode('single')}
+                            className={`px-2.5 py-1 rounded text-[10px] font-brand uppercase tracking-wider transition-all ${
+                              compareMode === 'single'
+                                ? 'bg-champagne text-plum font-bold shadow-sm'
+                                : 'text-ivory/70 hover:text-champagne'
+                            }`}
+                          >
+                            Single View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCompareMode('split')}
+                            className={`px-2.5 py-1 rounded text-[10px] font-brand uppercase tracking-wider transition-all flex items-center gap-1 ${
+                              compareMode === 'split'
+                                ? 'bg-champagne text-plum font-bold shadow-sm'
+                                : 'text-ivory/70 hover:text-champagne'
+                            }`}
+                          >
+                            <Split className="w-3 h-3" />
+                            <span>Compare Original</span>
+                          </button>
+                        </div>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => setIsZoomModalOpen(true)}
@@ -941,28 +987,43 @@ export const VirtualTryOnSection: React.FC = () => {
                         <Maximize2 className="w-3.5 h-3.5" />
                         <span>Zoom</span>
                       </button>
+
                       <button
                         type="button"
                         onClick={handleResetResult}
                         className="text-xs text-champagne hover:text-champagne-light bg-plum-dark/60 border border-champagne/20 px-3 py-1.5 rounded-lg transition-colors font-brand uppercase tracking-wider"
                       >
-                        View Catalog Garment
+                        View Catalog
                       </button>
                     </div>
                   </div>
 
-                  {/* Explicit Mandatory Notice: Additional views are not available yet */}
-                  <div className="bg-plum-dark/95 border border-champagne/30 rounded-xl p-3.5 flex items-start gap-3 text-xs shadow-md">
-                    <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-champagne font-semibold text-xs font-brand">
-                        Additional views are not available yet.
-                      </p>
-                      <p className="text-ivory/70 text-[11px] leading-relaxed font-light">
-                        The neural draping engine has generated an authentic frontal view of your portrait wearing {currentDress.name}. Side, back, and 360° views of your personalized try-on are not supported by the provider.
-                      </p>
+                  {/* Perspective Mode Banner */}
+                  {activeView !== 'front' ? (
+                    <div className="bg-plum-dark/95 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs shadow-md">
+                      <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="text-amber-300 font-semibold text-xs font-brand">
+                          Viewing {activeView.toUpperCase()} Catalog Garment Reference
+                        </p>
+                        <p className="text-ivory/70 text-[11px] leading-relaxed font-light">
+                          The diffusion provider synthesizes frontal perspective try-on. Showing authentic {activeView} angle of {currentDress.name} from atelier master collection. Switch back to Front to view your generated try-on.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-plum-dark/95 border border-emerald-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs shadow-md">
+                      <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="text-emerald-300 font-semibold text-xs font-brand">
+                          Frontal AI Virtual Try-On Active
+                        </p>
+                        <p className="text-ivory/70 text-[11px] leading-relaxed font-light">
+                          Synthesized with authentic customer facial identity, tailored body proportions, and selected bridal ensemble.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Mode 2: Catalog Garment Multi-Angle Viewer (SAME dress guaranteed on all angles!) */
@@ -1060,7 +1121,7 @@ export const VirtualTryOnSection: React.FC = () => {
 
                     {/* Watermark / Brand Badge */}
                     <div className="absolute top-4 left-4 bg-plum-dark/90 backdrop-blur-md border border-champagne/30 px-3 py-1.5 rounded-lg flex items-center gap-2 z-10 shadow-luxury">
-                      {renderedResultUrl ? (
+                      {renderedResultUrl && activeView === 'front' ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-champagne" />
                           <span className="text-[10px] font-brand tracking-wider uppercase text-champagne font-bold">
@@ -1079,7 +1140,7 @@ export const VirtualTryOnSection: React.FC = () => {
 
                     {/* View Angle / Result Assessment Pill */}
                     <div className="absolute top-4 right-4 bg-burgundy/90 backdrop-blur-md border border-champagne/40 px-3 py-1 rounded-full text-[10px] font-brand uppercase tracking-wider text-champagne z-10 shadow-luxury flex items-center gap-1.5">
-                      {renderedResultUrl ? (
+                      {renderedResultUrl && activeView === 'front' ? (
                         <>
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
@@ -1088,40 +1149,38 @@ export const VirtualTryOnSection: React.FC = () => {
                                 : 'bg-amber-400'
                             }`}
                           />
-                          <span>{resultAssessment?.label || '2D Neural Try-On Result ✓'}</span>
+                          <span>{resultAssessment?.label || 'Frontal 2D Try-On ✓'}</span>
                         </>
                       ) : (
-                        `${activeView.toUpperCase()} VIEW`
+                        `${activeView.toUpperCase()} VIEW (DRESS REF)`
                       )}
                     </div>
 
                     {/* Quick Steppers (Left/Right Arrows) for cycling views of the same dress */}
-                    {!renderedResultUrl && (
-                      <div className="absolute inset-y-0 inset-x-2 flex items-center justify-between pointer-events-none z-10">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePrevView();
-                          }}
-                          className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
-                          title="Previous garment view"
-                        >
-                          <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleNextView();
-                          }}
-                          className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
-                          title="Next garment view"
-                        >
-                          <ChevronRight className="w-5 h-5" />
-                        </button>
-                      </div>
-                    )}
+                    <div className="absolute inset-y-0 inset-x-2 flex items-center justify-between pointer-events-none z-10">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePrevView();
+                        }}
+                        className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
+                        title="Previous garment view"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNextView();
+                        }}
+                        className="pointer-events-auto w-9 h-9 rounded-full bg-plum-dark/80 hover:bg-burgundy text-champagne border border-champagne/30 flex items-center justify-center transition-all shadow-lg hover:scale-105"
+                        title="Next garment view"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
 
                     {/* Transparent Diagnostic Assessment for Partial or Knee-Crop Results */}
                     {renderedResultUrl && resultAssessment?.notice && (
