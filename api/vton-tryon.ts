@@ -514,10 +514,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fitAssessment: 'Photorealistic neural drape synthesized with RapidAPI Try-On Diffusion.',
     });
   } catch (err: any) {
-    console.error('[VTON Server Exception]:', err);
+    const isTimeout =
+      err?.name === 'TimeoutError' ||
+      err?.name === 'AbortError' ||
+      (err?.message && err.message.toLowerCase().includes('timeout')) ||
+      (err?.message && err.message.toLowerCase().includes('aborted'));
+
+    console.error('[VTON Server Exception]:', err?.message || err);
+
+    if (isTimeout) {
+      return res.status(504).json({
+        error: 'Virtual Try-On provider request timed out after 50 seconds.',
+        detail:
+          'RapidAPI Try-On Diffusion service took longer than 50 seconds to respond. The upstream GPU worker may be experiencing high queue load or cold-start delay.',
+        status: 504,
+      });
+    }
+
     return res.status(500).json({
       error: 'Virtual Try-On processing failed. Please try again.',
       detail: err?.message || 'Network exception during neural try-on processing.',
+      status: 500,
     });
   }
 }
