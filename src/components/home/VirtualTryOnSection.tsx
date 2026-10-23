@@ -184,7 +184,7 @@ export const VirtualTryOnSection: React.FC = () => {
     notice?: string;
   } | null>(null);
 
-  // Analyze generated AI Try-On image dimensions and coverage ratio
+  // Analyze generated AI Try-On image coverage based on customer input photo framing
   useEffect(() => {
     if (!renderedResultUrl) {
       setResultAssessment(null);
@@ -195,33 +195,26 @@ export const VirtualTryOnSection: React.FC = () => {
     img.onload = () => {
       const w = img.naturalWidth || 768;
       const h = img.naturalHeight || 1024;
-      const ratio = h / w;
 
-      if (ratio >= 1.22) {
+      if (customerPhoto && photoType === 'portrait' && !customerBodyPhoto) {
+        setResultAssessment({
+          coverage: 'waist-length',
+          dimensions: { width: w, height: h },
+          label: 'Neckline & Bodice Fitted ✓',
+          notice:
+            'Garment fitted to your portrait frame. For a full floor-length skirt and footwear draping, upload a standing head-to-shoes photo or select an atelier model.',
+        });
+      } else {
         setResultAssessment({
           coverage: 'full-length',
           dimensions: { width: w, height: h },
           label: 'Full-Length Silhouette Fitted ✓',
-        });
-      } else if (ratio >= 1.05) {
-        setResultAssessment({
-          coverage: 'knee-length',
-          dimensions: { width: w, height: h },
-          label: 'Knee-Length Fitted Silhouette',
-          notice:
-            'Output terminates around the knees. Full floor-length hemline synthesis requires both a head-to-feet customer photo AND a complete floor-length catalog photo.',
-        });
-      } else {
-        setResultAssessment({
-          coverage: 'waist-length',
-          dimensions: { width: w, height: h },
-          label: 'Bodice & Neckline Fitted',
-          notice: 'Partial crop detected. Garment fitted to visible customer frame.',
+          notice: 'Complete head-to-toe couture drape synthesized.',
         });
       }
     };
     img.src = renderedResultUrl;
-  }, [renderedResultUrl]);
+  }, [renderedResultUrl, photoType, customerPhoto, customerBodyPhoto]);
 
   // Helper to detect image framing, completeness, and orientation
   const detectPhotoFraming = (dataUrl: string) => {
@@ -233,19 +226,20 @@ export const VirtualTryOnSection: React.FC = () => {
       // Validate resolution & completeness using assessPhotoFraming
       if (w < 256 || h < 256) {
         setFramingNotice('Image resolution is very low (< 256px). Please retake or upload a higher resolution photo for authentic fitting.');
+        setPhotoType('portrait');
       } else {
         const assessment = assessPhotoFraming(w, h);
         if (assessment.isCloseUpOrBust) {
           setFramingNotice(assessment.message);
+          setPhotoType('portrait');
         } else if (assessment.framingType === 'three_quarter') {
           setFramingNotice(assessment.message);
+          setPhotoType('portrait');
         } else {
           setFramingNotice(null);
+          setPhotoType('fullbody');
         }
       }
-
-      // Default to fullbody fitting mode so customerPhoto is used as complete avatar
-      setPhotoType('fullbody');
     };
     img.src = dataUrl;
   };
@@ -256,6 +250,7 @@ export const VirtualTryOnSection: React.FC = () => {
       detectPhotoFraming(customerPhoto);
     } else {
       setFramingNotice(null);
+      setPhotoType('fullbody'); // Default sample models are full-body
     }
   }, [customerPhoto]);
 
@@ -373,10 +368,12 @@ export const VirtualTryOnSection: React.FC = () => {
     // Normalize customer image to clean 768x1024 (3:4 portrait) canvas so person and 3:4 dress share identical proportions
     const normalizedAvatar = await normalizeTo3x4Portrait(photoToUse);
 
+    const isPortraitOnly = Boolean(customerPhoto && photoType === 'portrait' && !customerBodyPhoto);
+
     const res = await aiProviders.tryon.generateTryOn({
       customerPhotoUrl: normalizedAvatar,
       customerFaceUrl: customerPhoto || undefined,
-      customerBodyUrl: customerBodyPhoto || (photoType === 'fullbody' ? normalizedAvatar : undefined),
+      customerBodyUrl: customerBodyPhoto || (isPortraitOnly ? undefined : normalizedAvatar),
       bodyStructure: customerBodyStructure,
       garmentImageUrl: selectedGarmentImage,
       productId: currentDress.id,
@@ -387,6 +384,8 @@ export const VirtualTryOnSection: React.FC = () => {
       fabric: currentDress.fabric,
       description: currentDress.description,
       perspectiveAngle: 'Front',
+      photoType: isPortraitOnly ? 'portrait' : 'fullbody',
+      isPortraitOnly,
     });
 
     setIsGenerating(false);
@@ -528,8 +527,16 @@ export const VirtualTryOnSection: React.FC = () => {
                         className="w-full h-full object-contain rounded-xl"
                       />
                       <div className="absolute top-2 left-2 bg-plum-dark/95 backdrop-blur-sm px-2.5 py-0.5 rounded-full border border-champagne/30 text-[9px] font-brand uppercase tracking-wider text-champagne flex items-center gap-1 shadow-md">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        <span>Full-Frame (Uncropped)</span>
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            photoType === 'fullbody' ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}
+                        />
+                        <span>
+                          {photoType === 'fullbody'
+                            ? 'Full-Body Silhouette ✓'
+                            : 'Portrait (Head & Shoulders)'}
+                        </span>
                       </div>
                       <div className="absolute bottom-2 inset-x-2 flex gap-1.5">
                         <button
@@ -557,57 +564,86 @@ export const VirtualTryOnSection: React.FC = () => {
                     </div>
 
                     {/* Framing Check & Incomplete Photo Advisory Notice */}
-                    {framingNotice && (
-                      <div className="bg-burgundy/40 border border-champagne/30 rounded-xl p-3 text-[11px] text-ivory/90 space-y-2 font-light">
+                    {photoType === 'portrait' ? (
+                      <div className="bg-plum-dark/95 border border-champagne/30 rounded-xl p-3 text-[11px] text-ivory/90 space-y-2.5 font-light shadow-md">
                         <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
+                          <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
                           <div className="space-y-0.5">
-                            <p className="font-semibold text-champagne font-brand uppercase tracking-wider text-[10px]">Framing Advisory:</p>
-                            <p className="leading-snug text-ivory/80">{framingNotice}</p>
+                            <p className="font-semibold text-champagne font-brand uppercase tracking-wider text-[10px]">
+                              Portrait Photo Detected:
+                            </p>
+                            <p className="leading-snug text-ivory/80">
+                              Your photo shows head & shoulders. The AI will fit the neckline and upper bodice. To see the complete floor-length skirt down to your shoes, you can also drape onto a full-body atelier model.
+                            </p>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setIsCameraOpen(true);
-                          }}
-                          className="w-full bg-champagne hover:bg-champagne-light text-plum font-bold text-[10px] uppercase tracking-wider py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-gold-subtle"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                          <span>Retake with Full-Body Guide</span>
-                        </button>
+
+                        <div className="flex gap-2 pt-1 border-t border-champagne/15">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSample(sampleModels[0].img);
+                              setCustomerPhoto(null);
+                              setPhotoType('fullbody');
+                            }}
+                            className="flex-1 bg-burgundy/80 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 font-brand uppercase tracking-wider"
+                          >
+                            <Sparkles className="w-3 h-3 text-champagne" />
+                            <span>Use Full-Body Model</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex-1 bg-plum/90 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 font-brand uppercase tracking-wider"
+                          >
+                            <Upload className="w-3 h-3 text-champagne" />
+                            <span>Upload Full-Body</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-[11px] text-ivory/90 space-y-1 font-light shadow-md">
+                        <div className="flex items-start gap-2">
+                          <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-emerald-300 font-brand uppercase tracking-wider text-[10px]">
+                              Full-Length Silhouette Active:
+                            </p>
+                            <p className="leading-snug text-ivory/80">
+                              Full standing silhouette detected. The complete ensemble from collar to floor-length flared skirt and footwear will be synthesized.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
 
-                    {/* Educational Guidance Notice when Reference Photo is uploaded */}
+                    {/* Optional Separate Full-Body Reference Photo Upload */}
                     <div className="bg-plum-dark/90 border border-champagne/25 rounded-xl p-3 text-[11px] text-ivory/80 space-y-2 font-light">
-                      <div className="flex items-start gap-2">
-                        <Info className="w-4 h-4 text-champagne flex-shrink-0 mt-0.5" />
-                        <p className="leading-snug">
-                          <strong className="text-champagne font-normal">Full-Body Fitting Active:</strong> Your complete portrait will be used for head-to-toe drape synthesis. You can optionally attach an additional reference photo below!
-                        </p>
-                      </div>
-
-                      {/* Optional Separate Full-Body Reference Photo Upload */}
-                      {customerBodyPhoto ? (
-                        <div className="flex items-center justify-between bg-plum/60 p-2 rounded-lg border border-champagne/20 text-[10px]">
-                          <span className="text-champagne truncate">Additional Reference Attached ✓</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-brand uppercase tracking-wider text-ivory/70">
+                          Optional Second Reference Photo:
+                        </span>
+                        {customerBodyPhoto && (
                           <button
                             onClick={() => setCustomerBodyPhoto(null)}
-                            className="text-rose hover:underline"
+                            className="text-rose text-[10px] hover:underline"
                           >
                             Remove
                           </button>
+                        )}
+                      </div>
+                      {customerBodyPhoto ? (
+                        <div className="flex items-center justify-between bg-plum/60 p-2 rounded-lg border border-champagne/20 text-[10px]">
+                          <span className="text-champagne truncate">Full-Body Reference Attached ✓</span>
                         </div>
                       ) : (
                         <button
+                          type="button"
                           onClick={() => bodyFileInputRef.current?.click()}
                           className="w-full bg-burgundy/60 hover:bg-burgundy text-champagne border border-champagne/30 text-[10px] py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                         >
                           <Upload className="w-3 h-3 text-champagne" />
-                          <span>Add Optional Reference Photo</span>
+                          <span>Attach Full-Body Photo for Dress Silhouette</span>
                         </button>
                       )}
                     </div>
@@ -845,7 +881,11 @@ export const VirtualTryOnSection: React.FC = () => {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-plum" />
-                    <span>GENERATE LOOK</span>
+                    <span>
+                      {customerPhoto && photoType === 'portrait' && !customerBodyPhoto
+                        ? 'FIT BODICE ON YOUR PORTRAIT'
+                        : 'GENERATE FULL-LENGTH VIRTUAL TRY-ON'}
+                    </span>
                   </>
                 )}
               </button>

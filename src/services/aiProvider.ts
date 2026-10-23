@@ -88,10 +88,10 @@ export class GeminiStylistProvider implements AIStylistProvider {
     const prefSeason = (preferences.season || '').toLowerCase();
     const prefBody = (preferences.bodyStructure || '').toLowerCase();
 
-    // 1. Attempt Real Server-side Gemini API call with strict 6-second timeout
+    // 1. Attempt Real Server-side Gemini API call with 20-second timeout
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       // Score all products first to present the top relevant 25 candidates to Gemini
       const preFiltered = [...activeCatalog].sort((a, b) => {
@@ -330,6 +330,8 @@ export interface TryOnRequest {
   fabric?: string;
   description?: string;
   perspectiveAngle?: 'Front' | 'Side' | 'Back';
+  photoType?: 'fullbody' | 'portrait';
+  isPortraitOnly?: boolean;
 }
 
 export interface TryOnResponse {
@@ -390,6 +392,8 @@ export class ReplicateVTONProvider implements TryOnProvider {
           color: req.color,
           fabric: req.fabric,
           description: req.description,
+          photo_type: req.photoType,
+          is_portrait_only: req.isPortraitOnly,
         }),
       });
 

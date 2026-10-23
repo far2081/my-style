@@ -24,8 +24,22 @@ interface ProductItem {
   stock?: number;
 }
 
+// Configure Vercel Serverless Function Execution limits
+export const config = {
+  maxDuration: 30,
+};
+
+let cachedWorkingModel = 'gemini-1.5-flash';
+let lastModelCheckTime = 0;
+const MODEL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache
+
 // Discover which model is active and supports generateContent
 async function getWorkingGeminiModel(apiKey: string): Promise<string> {
+  const now = Date.now();
+  if (cachedWorkingModel && now - lastModelCheckTime < MODEL_CACHE_TTL_MS) {
+    return cachedWorkingModel;
+  }
+
   const preferredCandidates = [
     'gemini-1.5-flash-latest',
     'gemini-1.5-flash',
@@ -38,7 +52,7 @@ async function getWorkingGeminiModel(apiKey: string): Promise<string> {
   try {
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(3000),
     });
 
     if (listRes.ok) {
@@ -50,11 +64,15 @@ async function getWorkingGeminiModel(apiKey: string): Promise<string> {
 
       for (const cand of preferredCandidates) {
         if (supported.includes(cand)) {
+          cachedWorkingModel = cand;
+          lastModelCheckTime = now;
           return cand;
         }
       }
 
       if (supported.length > 0) {
+        cachedWorkingModel = supported[0];
+        lastModelCheckTime = now;
         return supported[0];
       }
     }
@@ -62,7 +80,9 @@ async function getWorkingGeminiModel(apiKey: string): Promise<string> {
     console.warn('[Gemini Stylist] Model discovery notice:', err?.message || err);
   }
 
-  return 'gemini-1.5-flash-latest';
+  cachedWorkingModel = 'gemini-1.5-flash';
+  lastModelCheckTime = now;
+  return 'gemini-1.5-flash';
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

@@ -6,7 +6,7 @@ import { BRIDAL_ITEMS_DATA } from '../data/bridalLooks';
 import { dbService } from '../services/dbService';
 import { authService } from '../services/authService';
 import { aiProviders } from '../services/aiProvider';
-import { normalizeTo3x4Portrait } from '../utils/imageNormalization';
+import { normalizeTo3x4Portrait, assessPhotoFraming, FramingAssessment } from '../utils/imageNormalization';
 
 interface AppContextType {
   activeView: ViewMode;
@@ -308,13 +308,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? product.images.fullLook
           : product.images.front;
 
-      // Normalize person image to 3:4 portrait canvas (768x1024) with vertical headroom and feet clearance
+      // Normalize person image to 3:4 portrait canvas (768x1024)
       const normalizedAvatar = await normalizeTo3x4Portrait(photoToUse);
+
+      // Check framing: headshot/portrait vs full standing silhouette
+      let isPortrait = false;
+      try {
+        const assessment = await new Promise<FramingAssessment>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(assessPhotoFraming(img.naturalWidth || 640, img.naturalHeight || 480));
+          img.onerror = () => resolve({ isCloseUpOrBust: false, framingType: 'full_body', aspectRatio: 1.33, isLandscape: false, message: '' });
+          img.src = photoToUse;
+        });
+        isPortrait = Boolean(assessment.isCloseUpOrBust || assessment.framingType === 'three_quarter');
+      } catch {}
+
+      const isPortraitOnly = Boolean(isPortrait && !customerBodyPhoto);
 
       const res = await aiProviders.tryon.generateTryOn({
         customerPhotoUrl: normalizedAvatar,
         customerFaceUrl: photoToUse.startsWith('data:') ? photoToUse : undefined,
-        customerBodyUrl: customerBodyPhoto || normalizedAvatar,
+        customerBodyUrl: customerBodyPhoto || (isPortraitOnly ? undefined : normalizedAvatar),
         bodyStructure: customerBodyStructure,
         garmentImageUrl: selectedGarmentImage,
         productId: product.id,
@@ -325,6 +339,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fabric: product.fabric,
         description: product.description,
         perspectiveAngle: 'Front',
+        photoType: isPortraitOnly ? 'portrait' : 'fullbody',
+        isPortraitOnly,
       });
 
       setIsTryOnGenerating(false);

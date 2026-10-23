@@ -9,9 +9,10 @@ const EXPECTED_HOST = 'try-on-diffusion.p.rapidapi.com';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '15mb',
+      sizeLimit: '10mb',
     },
   },
+  maxDuration: 60,
 };
 
 // Supabase client helper for optional server-side archival
@@ -133,6 +134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     color,
     fabric,
     description,
+    is_portrait_only,
+    photo_type,
   } = req.body as {
     avatar_image_url?: string;
     face_image_url?: string;
@@ -142,15 +145,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     productId?: string;
     userId?: string;
     product_name?: string;
+    dressType?: string;
     dress_type?: string;
     category?: string;
     color?: string;
     fabric?: string;
     description?: string;
+    is_portrait_only?: boolean;
+    photo_type?: 'fullbody' | 'portrait';
   };
 
   // If customer uploaded both a face portrait and a full-body photo, choose full body as garment avatar
   const primaryAvatarUrl = body_image_url && body_image_url.trim() ? body_image_url : avatar_image_url;
+
+  const isPortraitMode = Boolean(is_portrait_only || photo_type === 'portrait');
 
   const cleanName = (product_name || '').trim();
   const cleanType = (dress_type || category || 'formal dress').trim();
@@ -158,23 +166,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const cleanFabric = (fabric || '').trim();
   const cleanDesc = (description || '').slice(0, 150).trim();
 
-  // Rich prompt conditioning so Texel.Moda Try-On Diffusion guides full-length garment draping
-  // across bodice, waist, hips, and flared skirt instead of clipping to neckline
-  const clothingPrompt = [
-    `an authentic full-length Pakistani ${cleanType}`,
-    cleanName ? `StyleMira ${cleanName}` : '',
-    cleanColor ? `${cleanColor} color` : '',
-    cleanFabric ? `${cleanFabric} fabric` : '',
-    'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt down to the hemline',
-    body_structure ? `tailored for a ${body_structure} silhouette` : '',
-    cleanDesc ? cleanDesc : '',
-  ]
-    .filter(Boolean)
-    .join(', ');
+  // Dynamic prompt conditioning based on whether customer submitted a full-length silhouette or head/bust portrait
+  const clothingPrompt = isPortraitMode
+    ? [
+        `an authentic Pakistani ${cleanType}`,
+        cleanName ? `StyleMira ${cleanName}` : '',
+        cleanColor ? `${cleanColor} color` : '',
+        cleanFabric ? `${cleanFabric} fabric` : '',
+        'detailed embroidered neckline, embellished collar, and tailored bodice',
+        cleanDesc ? cleanDesc : '',
+      ]
+        .filter(Boolean)
+        .join(', ')
+    : [
+        `an authentic full-length Pakistani ${cleanType}`,
+        cleanName ? `StyleMira ${cleanName}` : '',
+        cleanColor ? `${cleanColor} color` : '',
+        cleanFabric ? `${cleanFabric} fabric` : '',
+        'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt down to the hemline',
+        body_structure ? `tailored for a ${body_structure} silhouette` : '',
+        cleanDesc ? cleanDesc : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
 
-  const avatarPrompt = 'a full-body portrait of a woman standing front-facing, head and feet clearly visible, natural posture';
+  const avatarPrompt = isPortraitMode
+    ? 'a portrait of a woman front-facing, head and shoulders clearly visible, natural posture'
+    : 'a full-body portrait of a woman standing front-facing, head and feet clearly visible, natural posture';
   const avatarSex = 'female';
-  const garmentCategory = 'dresses';
+  const garmentCategory = isPortraitMode ? 'upper_body' : 'dresses';
 
   // Stage 1 Diagnostic: Portrait, Body, Structure, and Garment Received
   const isBase64Avatar = Boolean(primaryAvatarUrl && primaryAvatarUrl.startsWith('data:image/'));
@@ -245,7 +265,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Fetch the clothing image binary bytes
       console.log('[VTON Diagnostic Stage 3 - Fetching Garment Binary]');
-      const clothingRes = await fetch(accessibleClothingUrl);
+      let clothingRes: Response;
+      try {
+        clothingRes = await fetch(accessibleClothingUrl, { signal: AbortSignal.timeout(8000) });
+      } catch (clothErr: any) {
+        // Fallback to GitHub raw CDN if domain host fetch failed
+        const fallbackUrl = `https://raw.githubusercontent.com/far2081/my-style/main/public${clothing_image_url.startsWith('/') ? clothing_image_url : '/' + clothing_image_url}`;
+        console.warn('[VTON Notice] Primary garment fetch timed out/failed, retrying with raw CDN:', fallbackUrl);
+        clothingRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(8000) });
+      }
+
       if (!clothingRes.ok) {
         throw new Error(`Failed to retrieve garment image: HTTP ${clothingRes.status}`);
       }
@@ -276,14 +305,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         avatarSex,
         category: garmentCategory,
       });
+
+      const rapidStartTime = Date.now();
       rapidResponse = await fetch(VTON_FILE_ENDPOINT, {
         method: 'POST',
         headers: {
           'X-RapidAPI-Key': apiKey.trim(),
           'X-RapidAPI-Host': apiHost.trim(),
         },
+        signal: AbortSignal.timeout(50000), // 50s timeout protects before Vercel 60s hard kill
         body: fileFormData,
       });
+      const rapidElapsedMs = Date.now() - rapidStartTime;
     } else {
       // Avatar is a web URL (e.g. sample atelier model)
       const accessibleAvatarUrl = resolveAccessibleAvatarUrl(rawAvatarUrl, req);
@@ -308,14 +341,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         avatarSex,
         category: garmentCategory,
       });
+
+      const rapidStartTime = Date.now();
       rapidResponse = await fetch(VTON_URL_ENDPOINT, {
         method: 'POST',
         headers: {
           'X-RapidAPI-Key': apiKey.trim(),
           'X-RapidAPI-Host': apiHost.trim(),
         },
+        signal: AbortSignal.timeout(50000),
         body: urlFormData,
       });
+      let rapidElapsedMs = Date.now() - rapidStartTime;
 
       // If provider returned 415 or 400 with "JSON", retry with application/json
       if (!rapidResponse.ok && (rapidResponse.status === 415 || rapidResponse.status === 400)) {
@@ -329,6 +366,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               'X-RapidAPI-Host': apiHost.trim(),
               'Content-Type': 'application/json',
             },
+            signal: AbortSignal.timeout(45000),
             body: JSON.stringify({
               avatar_image_url: accessibleAvatarUrl,
               clothing_image_url: accessibleClothingUrl,
@@ -381,6 +419,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error: 'Virtual Try-On request limit reached. Please try again shortly.',
           detail: errorText.slice(0, 300),
           status: 429,
+        });
+      }
+      if (status === 504 || status === 502 || status === 503) {
+        return res.status(504).json({
+          error: 'The AI generation server took too long to synthesize the try-on. Please try again with a smaller photo.',
+          detail: errorText.slice(0, 300),
+          status: 504,
         });
       }
 

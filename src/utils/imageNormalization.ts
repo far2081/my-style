@@ -31,17 +31,17 @@ export function assessPhotoFraming(width: number, height: number): FramingAssess
       framingType: 'bust_or_closeup',
       isCloseUpOrBust: true,
       isLandscape: true,
-      message: 'Landscape photo detected. For authentic full-length outfit draping, please upload or capture a vertical portrait showing your complete silhouette from head to shoes.',
+      message: 'Landscape photo detected. AI Virtual Try-On will fit the upper neckline & bodice. For full-length floor gowns, please upload a standing vertical photo showing your complete silhouette from head to shoes.',
     };
-  } else if (ratio < 1.20) {
+  } else if (ratio < 1.25) {
     return {
       aspectRatio: ratio,
       framingType: 'bust_or_closeup',
       isCloseUpOrBust: true,
       isLandscape: false,
-      message: 'Square or bust-level portrait detected. The AI Try-On engine requires your full standing silhouette (head to shoes) to drape floor-length lehengas and gowns without neck or proportion distortion.',
+      message: 'Head & Shoulders Portrait detected. AI Virtual Try-On will fit the neckline, collar, and bodice. For floor-length skirt and footwear draping, upload a full-length photo or select a full-body atelier avatar.',
     };
-  } else if (ratio < 1.40) {
+  } else if (ratio < 1.45) {
     return {
       aspectRatio: ratio,
       framingType: 'three_quarter',
@@ -55,7 +55,7 @@ export function assessPhotoFraming(width: number, height: number): FramingAssess
       framingType: 'full_body',
       isCloseUpOrBust: false,
       isLandscape: false,
-      message: 'Optimal full-length standing portrait detected.',
+      message: 'Full-length vertical standing portrait detected. Complete head-to-toe outfit draping active.',
     };
   }
 }
@@ -93,51 +93,55 @@ export async function normalizeTo3x4Portrait(
           return;
         }
 
-        // Fill background with dark studio tone as fallback
+        // Fill background with neutral tone
         ctx.fillStyle = '#1A1118';
         ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-        // Case 1: Source is roughly 3:4 portrait (within 4% tolerance)
-        if (Math.abs(sourceRatio - targetRatio) < 0.04) {
-          // Slight vertical padding (3%) for headroom and foot clearance
-          const vPad = Math.round(targetHeight * 0.03);
-          const drawH = targetHeight - (vPad * 2);
-          const drawW = Math.round(drawH * sourceRatio);
-          const dx = Math.round((targetWidth - drawW) / 2);
-          ctx.drawImage(img, 0, 0, w, h, dx, vPad, drawW, drawH);
+        // Case 1: Source is roughly 3:4 portrait (within 5% tolerance)
+        // Draw directly to fill canvas — ZERO artificial black bar padding so feet and hemlines are 100% visible
+        if (Math.abs(sourceRatio - targetRatio) < 0.05) {
+          ctx.drawImage(img, 0, 0, w, h, 0, 0, targetWidth, targetHeight);
         }
         // Case 2: Source is taller than 3:4 (e.g. mobile 9:16 portrait)
+        // Span 100% of height (y=0 to targetHeight) so head and shoes are never clipped
         else if (sourceRatio < targetRatio) {
-          // Scale with 3.5% vertical headroom & floor clearance so hair and hemline aren't clipped by edge convolutions
-          const vPad = Math.round(targetHeight * 0.035);
-          const drawH = targetHeight - (vPad * 2);
-          const drawW = Math.round(drawH * sourceRatio);
+          const drawH = targetHeight;
+          const drawW = Math.round(targetHeight * sourceRatio);
           const dx = Math.round((targetWidth - drawW) / 2);
 
-          // Draw blurred ambient background to prevent sharp edge artifacts for AI mask
+          // Subtle ambient side background so neural mask sees smooth transition instead of stark line
           try {
             ctx.save();
             ctx.filter = 'blur(20px)';
             ctx.drawImage(img, -20, -20, targetWidth + 40, targetHeight + 40);
             ctx.restore();
           } catch {
-            // Some browsers or tainted canvases might throw on filter
+            // fallback
           }
 
-          // Draw dark translucent overlay on background padding
           ctx.fillStyle = 'rgba(26, 17, 24, 0.4)';
           ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-          // Draw crisp full-body figure centered with headroom & feet clearance
-          ctx.drawImage(img, 0, 0, w, h, dx, vPad, drawW, drawH);
+          // Draw crisp full-body figure spanning 100% of canvas height
+          ctx.drawImage(img, 0, 0, w, h, dx, 0, drawW, drawH);
         }
-        // Case 3: Source is wider than 3:4 (e.g. square, 4:3, or landscape)
+        // Case 3: Source is wider than 3:4 (e.g. square, 2:3 DSLR, 4:3, or landscape)
         else {
-          // If square or landscape (h/w < 1.15), stretching a face crop to fill full height causes neck elongation.
-          // Non-destructive ingestion: contain entire image with ambient blurred background.
           const vertRatio = h / w;
-          if (vertRatio < 1.15) {
-            // Ambient backdrop
+          // If vertical ratio is near portrait (>= 1.15, e.g. 2:3 DSLR), center crop horizontally while preserving 100% of height
+          if (vertRatio >= 1.15) {
+            const sWidth = Math.round(h * targetRatio);
+            const sx = Math.round((w - sWidth) / 2);
+            if (sx >= 0 && sWidth <= w) {
+              ctx.drawImage(img, sx, 0, sWidth, h, 0, 0, targetWidth, targetHeight);
+            } else {
+              const drawW = targetWidth;
+              const drawH = Math.round(targetWidth / sourceRatio);
+              const dy = Math.round((targetHeight - drawH) / 2);
+              ctx.drawImage(img, 0, 0, w, h, 0, dy, drawW, drawH);
+            }
+          } else {
+            // Square or landscape: Ambient backdrop with full-image containment
             try {
               ctx.save();
               ctx.filter = 'blur(25px)';
@@ -150,26 +154,19 @@ export async function normalizeTo3x4Portrait(
             ctx.fillStyle = 'rgba(26, 17, 24, 0.45)';
             ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-            // Fit width with headroom
-            const drawW = Math.round(targetWidth * 0.94);
-            const drawH = Math.round(drawW / sourceRatio);
-            const dx = Math.round((targetWidth - drawW) / 2);
-            const dy = Math.max(10, Math.round((targetHeight - drawH) / 2));
-            ctx.drawImage(img, 0, 0, w, h, dx, dy, drawW, drawH);
-          } else {
-            // Standing portrait slightly wider than 3:4 (e.g. 2:3 or 3:4.5)
-            // Center crop with subtle margin
-            const sWidth = Math.round(h * targetRatio);
-            const sx = Math.round((w - sWidth) / 2);
-
-            if (sx >= 0 && sWidth <= w) {
-              ctx.drawImage(img, sx, 0, sWidth, h, 0, 0, targetWidth, targetHeight);
-            } else {
-              // Contain
-              const drawW = targetWidth;
-              const drawH = Math.round(targetWidth / sourceRatio);
+            // Fit height or width cleanly
+            const drawH = Math.round(targetHeight * 0.92);
+            const drawW = Math.round(drawH * sourceRatio);
+            if (drawW <= targetWidth) {
+              const dx = Math.round((targetWidth - drawW) / 2);
               const dy = Math.round((targetHeight - drawH) / 2);
-              ctx.drawImage(img, 0, 0, w, h, 0, dy, drawW, drawH);
+              ctx.drawImage(img, 0, 0, w, h, dx, dy, drawW, drawH);
+            } else {
+              const fitW = Math.round(targetWidth * 0.94);
+              const fitH = Math.round(fitW / sourceRatio);
+              const dx = Math.round((targetWidth - fitW) / 2);
+              const dy = Math.round((targetHeight - fitH) / 2);
+              ctx.drawImage(img, 0, 0, w, h, dx, dy, fitW, fitH);
             }
           }
         }

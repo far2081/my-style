@@ -115,14 +115,14 @@ export const AIStylistSection: React.FC = () => {
 
     // Safety timeout: guarantees UI NEVER stays stuck on loading screen indefinitely
     const safetyTimer = setTimeout(() => {
-      console.warn('[AIStylist] Safety timeout (9s) triggered. Resuming flow.');
+      console.warn('[AIStylist] Safety timeout (18s) triggered. Resuming flow.');
       setIsSubmitting(false);
       setStep('result');
-    }, 9000);
+    }, 18000);
 
     try {
       if (customerPhoto) {
-        setAiProviderStatus('Analyzing skin undertones & contrast palette via Vision...');
+        setAiProviderStatus('Stage 1/2: Analyzing portrait undertones & personal palette...');
         try {
           await aiProviders.vision.analyzeImage({ imageFileOrUrl: customerPhoto });
         } catch {
@@ -130,7 +130,7 @@ export const AIStylistSection: React.FC = () => {
         }
       }
 
-      setAiProviderStatus('Synthesizing bespoke ensembles with Pakistani couture catalog...');
+      setAiProviderStatus('Stage 1/2: Synthesizing bespoke couture recommendations with Gemini AI...');
       const stylistRes = await (aiProviders.stylist as any).analyzeAndRecommend(
         {
           preferences: {
@@ -149,15 +149,32 @@ export const AIStylistSection: React.FC = () => {
         products
       );
 
-      clearTimeout(safetyTimer);
-
+      let targetProduct = stylistRes?.primaryRecommendation || recommendedProduct;
       if (stylistRes?.primaryRecommendation) {
         setGeminiRecommendedProduct(stylistRes.primaryRecommendation);
       }
       const topMatch = stylistRes?.topLooks?.[0]?.matchScore || 96;
       setMatchPercentage(topMatch);
       setRecommendationReason(stylistRes?.curatedAdvice || '');
+
+      // Transition immediately to the result view so customer sees the curated outfit
       setStep('result');
+      setIsSubmitting(false);
+      clearTimeout(safetyTimer);
+
+      // Stage 2: If customer uploaded a photo, automatically trigger Virtual Try-On for the curated outfit!
+      if (customerPhoto && targetProduct) {
+        setCustomerBodyStructure(bodyStructure);
+        setTryOnProduct(targetProduct);
+        setAiProviderStatus('Stage 2/2: Generating personalized virtual try-on on your photo...');
+        generateTryOnForProduct(targetProduct).then((success) => {
+          if (success) {
+            setPreviewMode('tryon');
+          }
+        }).catch((err) => {
+          console.warn('[AIStylist Try-On Background synthesis notice]:', err);
+        });
+      }
     } catch (err: any) {
       clearTimeout(safetyTimer);
       console.error('[AIStylist Error]', err);
