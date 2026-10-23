@@ -166,6 +166,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const cleanFabric = (fabric || '').trim();
   const cleanDesc = (description || '').slice(0, 150).trim();
 
+  // Detect bridal look or head-covering dupatta in product metadata
+  const isBridalOrDupatta =
+    cleanType.toLowerCase().includes('bridal') ||
+    cleanType.toLowerCase().includes('lehenga') ||
+    cleanType.toLowerCase().includes('gharara') ||
+    cleanType.toLowerCase().includes('peshwas') ||
+    cleanType.toLowerCase().includes('anarkali') ||
+    cleanDesc.toLowerCase().includes('dupatta') ||
+    cleanDesc.toLowerCase().includes('bridal') ||
+    cleanName.toLowerCase().includes('bridal') ||
+    cleanName.toLowerCase().includes('shahzadi') ||
+    cleanName.toLowerCase().includes('lehenga') ||
+    cleanName.toLowerCase().includes('dupatta');
+
   // Dynamic prompt conditioning based on whether customer submitted a full-length silhouette or head/bust portrait
   const clothingPrompt = isPortraitMode
     ? [
@@ -173,17 +187,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cleanName ? `StyleMira ${cleanName}` : '',
         cleanColor ? `${cleanColor} color` : '',
         cleanFabric ? `${cleanFabric} fabric` : '',
+        'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
+        isBridalOrDupatta
+          ? 'wearing matching sheer embroidered dupatta draped over the head framing the face, headpiece and veil properly placed around head and shoulders'
+          : '',
         'detailed embroidered neckline, embellished collar, and tailored bodice',
         cleanDesc ? cleanDesc : '',
       ]
         .filter(Boolean)
         .join(', ')
     : [
-        `an authentic full-length Pakistani ${cleanType}`,
+        `an authentic complete full-length Pakistani ${cleanType}`,
         cleanName ? `StyleMira ${cleanName}` : '',
         cleanColor ? `${cleanColor} color` : '',
         cleanFabric ? `${cleanFabric} fabric` : '',
-        'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt down to the hemline',
+        'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
+        isBridalOrDupatta
+          ? 'wearing matching sheer embroidered dupatta draped over the head framing the face, head covering and veil gracefully falling over shoulders'
+          : '',
+        'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt extending all the way down to the hemline, feet, and shoes fully visible',
         body_structure ? `tailored for a ${body_structure} silhouette` : '',
         cleanDesc ? cleanDesc : '',
       ]
@@ -191,8 +213,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .join(', ');
 
   const avatarPrompt = isPortraitMode
-    ? 'a portrait of a woman front-facing, head and shoulders clearly visible, natural posture'
-    : 'a full-body portrait of a woman standing front-facing, head and feet clearly visible, natural posture';
+    ? 'a clear frontal portrait of a woman, natural human anatomy, realistic neck proportions, head and shoulders clearly visible, natural posture'
+    : 'a complete full-body frontal portrait of a woman standing straight, head, natural neck, full body, knees, legs, and feet completely visible from top to bottom, natural proportions';
   const avatarSex = 'female';
   const garmentCategory = isPortraitMode ? 'upper_body' : 'dresses';
 

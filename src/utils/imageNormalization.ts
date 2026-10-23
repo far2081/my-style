@@ -33,7 +33,7 @@ export function assessPhotoFraming(width: number, height: number): FramingAssess
       isLandscape: true,
       message: 'Landscape photo detected. AI Virtual Try-On will fit the upper neckline & bodice. For full-length floor gowns, please upload a standing vertical photo showing your complete silhouette from head to shoes.',
     };
-  } else if (ratio < 1.25) {
+  } else if (ratio < 1.15) {
     return {
       aspectRatio: ratio,
       framingType: 'bust_or_closeup',
@@ -41,13 +41,13 @@ export function assessPhotoFraming(width: number, height: number): FramingAssess
       isLandscape: false,
       message: 'Head & Shoulders Portrait detected. AI Virtual Try-On will fit the neckline, collar, and bodice. For floor-length skirt and footwear draping, upload a full-length photo or select a full-body atelier avatar.',
     };
-  } else if (ratio < 1.45) {
+  } else if (ratio < 1.28) {
     return {
       aspectRatio: ratio,
       framingType: 'three_quarter',
       isCloseUpOrBust: false,
       isLandscape: false,
-      message: 'Three-quarter portrait detected. Garment will fit your visible torso and knees; for floor-length gowns, include your full standing height.',
+      message: 'Three-quarter portrait detected. Garment will fit your visible silhouette down to hemline; for full footwear visibility, include head-to-shoes height.',
     };
   } else {
     return {
@@ -55,7 +55,7 @@ export function assessPhotoFraming(width: number, height: number): FramingAssess
       framingType: 'full_body',
       isCloseUpOrBust: false,
       isLandscape: false,
-      message: 'Full-length vertical standing portrait detected. Complete head-to-toe outfit draping active.',
+      message: 'Full-length vertical standing silhouette detected. Complete head-to-toe outfit draping active.',
     };
   }
 }

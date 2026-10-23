@@ -320,7 +320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           img.onerror = () => resolve({ isCloseUpOrBust: false, framingType: 'full_body', aspectRatio: 1.33, isLandscape: false, message: '' });
           img.src = photoToUse;
         });
-        isPortrait = Boolean(assessment.isCloseUpOrBust || assessment.framingType === 'three_quarter');
+        isPortrait = Boolean(assessment.isCloseUpOrBust);
       } catch {}
 
       const isPortraitOnly = Boolean(isPortrait && !customerBodyPhoto);

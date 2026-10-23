@@ -234,7 +234,7 @@ export const VirtualTryOnSection: React.FC = () => {
           setPhotoType('portrait');
         } else if (assessment.framingType === 'three_quarter') {
           setFramingNotice(assessment.message);
-          setPhotoType('portrait');
+          setPhotoType('fullbody'); // Allow full-length dresses to drape down rather than forcing upper_body crop
         } else {
           setFramingNotice(null);
           setPhotoType('fullbody');
