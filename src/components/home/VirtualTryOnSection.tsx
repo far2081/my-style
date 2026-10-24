@@ -260,9 +260,10 @@ export const VirtualTryOnSection: React.FC = () => {
       const reader = new FileReader();
       reader.onload = async () => {
         if (typeof reader.result === 'string') {
-          const normalized = await normalizeTo3x4Portrait(reader.result);
+          const rawData = reader.result;
+          detectPhotoFraming(rawData);
+          const normalized = await normalizeTo3x4Portrait(rawData);
           setCustomerPhoto(normalized);
-          detectPhotoFraming(normalized);
           setSelectedSample('');
           setRenderedResultUrl(null);
           setPersonalizedTryOnUrl(null);

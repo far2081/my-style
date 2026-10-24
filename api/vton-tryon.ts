@@ -203,9 +203,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cleanFabric ? `${cleanFabric} fabric` : '',
         'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
         isBridalOrDupatta
-          ? 'wearing matching sheer embroidered dupatta draped over the head framing the face, head covering and veil gracefully falling over shoulders'
+          ? 'wearing matching sheer embroidered dupatta draped over the head framing the face, traditional embellished headpiece and veil gracefully falling over shoulders'
           : '',
-        'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt extending all the way down to the hemline, feet, and shoes fully visible',
+        'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt extending all the way down to the hemline, feet and shoes fully visible on floor',
         body_structure ? `tailored for a ${body_structure} silhouette` : '',
         cleanDesc ? cleanDesc : '',
       ]
@@ -213,10 +213,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .join(', ');
 
   const avatarPrompt = isPortraitMode
-    ? 'a clear frontal portrait of a woman, natural human anatomy, realistic neck proportions, head and shoulders clearly visible, natural posture'
-    : 'a complete full-body frontal portrait of a woman standing straight, head, natural neck, full body, knees, legs, and feet completely visible from top to bottom, natural proportions';
+    ? (isBridalOrDupatta
+        ? 'a clear frontal portrait of a woman wearing a matching sheer embroidered bridal dupatta draped over her head framing her face, authentic jewelry and headpiece, natural human anatomy, realistic neck proportions, head and shoulders clearly visible'
+        : 'a clear frontal portrait of a woman, natural human anatomy, realistic neck proportions, head and shoulders clearly visible, natural posture')
+    : (isBridalOrDupatta
+        ? 'a complete full-body frontal portrait of a woman standing straight, wearing matching sheer embroidered bridal dupatta draped over her head framing her face, headpiece visible, natural human anatomy, realistic neck, complete standing body from head to feet, full flared skirt hemline and shoes completely visible on floor'
+        : 'a complete full-body frontal portrait of a woman standing straight, head, natural neck, full body, knees, legs, and feet completely visible from top to bottom, natural proportions');
   const avatarSex = 'female';
-  const garmentCategory = isPortraitMode ? 'upper_body' : 'dresses';
+
+  const isFullLengthGarment =
+    !category ||
+    category.toLowerCase() === 'dresses' ||
+    category.toLowerCase() === 'bridal' ||
+    category.toLowerCase() === 'barat' ||
+    category.toLowerCase() === 'walima' ||
+    category.toLowerCase() === 'nikah' ||
+    category.toLowerCase() === 'formal' ||
+    category.toLowerCase() === 'festive' ||
+    cleanType.toLowerCase().includes('lehenga') ||
+    cleanType.toLowerCase().includes('gharara') ||
+    cleanType.toLowerCase().includes('peshwas') ||
+    cleanType.toLowerCase().includes('anarkali') ||
+    cleanType.toLowerCase().includes('gown') ||
+    cleanType.toLowerCase().includes('maxi') ||
+    cleanType.toLowerCase().includes('saree') ||
+    cleanType.toLowerCase().includes('bridal') ||
+    cleanType.toLowerCase().includes('dress');
+
+  const garmentCategory = isFullLengthGarment ? 'dresses' : (isPortraitMode ? 'upper_body' : 'dresses');
 
   // Stage 1 Diagnostic: Portrait, Body, Structure, and Garment Received
   const isBase64Avatar = Boolean(primaryAvatarUrl && primaryAvatarUrl.startsWith('data:image/'));

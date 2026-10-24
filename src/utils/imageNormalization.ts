@@ -25,29 +25,21 @@ export interface FramingAssessment {
 export function assessPhotoFraming(width: number, height: number): FramingAssessment {
   const ratio = height / width; // vertical aspect ratio
 
-  if (ratio < 0.95) {
+  if (ratio < 0.65) {
     return {
       aspectRatio: ratio,
       framingType: 'bust_or_closeup',
-      isCloseUpOrBust: true,
+      isCloseUpOrBust: false,
       isLandscape: true,
-      message: 'Landscape photo detected. AI Virtual Try-On will fit the upper neckline & bodice. For full-length floor gowns, please upload a standing vertical photo showing your complete silhouette from head to shoes.',
+      message: 'Wide landscape photo detected. Centered standing figure will be fitted with complete full-length ensemble.',
     };
-  } else if (ratio < 1.15) {
+  } else if (ratio < 0.85) {
     return {
       aspectRatio: ratio,
-      framingType: 'bust_or_closeup',
-      isCloseUpOrBust: true,
-      isLandscape: false,
-      message: 'Head & Shoulders Portrait detected. AI Virtual Try-On will fit the neckline, collar, and bodice. For floor-length skirt and footwear draping, upload a full-length photo or select a full-body atelier avatar.',
-    };
-  } else if (ratio < 1.28) {
-    return {
-      aspectRatio: ratio,
-      framingType: 'three_quarter',
+      framingType: 'full_body',
       isCloseUpOrBust: false,
       isLandscape: false,
-      message: 'Three-quarter portrait detected. Garment will fit your visible silhouette down to hemline; for full footwear visibility, include head-to-shoes height.',
+      message: 'Standard photo detected. Full-length silhouette active from head to shoes.',
     };
   } else {
     return {
@@ -125,50 +117,14 @@ export async function normalizeTo3x4Portrait(
           // Draw crisp full-body figure spanning 100% of canvas height
           ctx.drawImage(img, 0, 0, w, h, dx, 0, drawW, drawH);
         }
-        // Case 3: Source is wider than 3:4 (e.g. square, 2:3 DSLR, 4:3, or landscape)
+        // Case 3: Source is wider than 3:4 (e.g. square, 4:3, 2:3 DSLR, or landscape)
+        // Span 100% of vertical height (head to feet) from y=0 to targetHeight so shoes and hemline are never cropped
         else {
-          const vertRatio = h / w;
-          // If vertical ratio is near portrait (>= 1.15, e.g. 2:3 DSLR), center crop horizontally while preserving 100% of height
-          if (vertRatio >= 1.15) {
-            const sWidth = Math.round(h * targetRatio);
-            const sx = Math.round((w - sWidth) / 2);
-            if (sx >= 0 && sWidth <= w) {
-              ctx.drawImage(img, sx, 0, sWidth, h, 0, 0, targetWidth, targetHeight);
-            } else {
-              const drawW = targetWidth;
-              const drawH = Math.round(targetWidth / sourceRatio);
-              const dy = Math.round((targetHeight - drawH) / 2);
-              ctx.drawImage(img, 0, 0, w, h, 0, dy, drawW, drawH);
-            }
-          } else {
-            // Square or landscape: Ambient backdrop with full-image containment
-            try {
-              ctx.save();
-              ctx.filter = 'blur(25px)';
-              ctx.drawImage(img, -20, -20, targetWidth + 40, targetHeight + 40);
-              ctx.restore();
-            } catch {
-              // fallback
-            }
+          const drawH = targetHeight;
+          const drawW = Math.round(targetHeight * sourceRatio);
+          const dx = Math.round((targetWidth - drawW) / 2);
 
-            ctx.fillStyle = 'rgba(26, 17, 24, 0.45)';
-            ctx.fillRect(0, 0, targetWidth, targetHeight);
-
-            // Fit height or width cleanly
-            const drawH = Math.round(targetHeight * 0.92);
-            const drawW = Math.round(drawH * sourceRatio);
-            if (drawW <= targetWidth) {
-              const dx = Math.round((targetWidth - drawW) / 2);
-              const dy = Math.round((targetHeight - drawH) / 2);
-              ctx.drawImage(img, 0, 0, w, h, dx, dy, drawW, drawH);
-            } else {
-              const fitW = Math.round(targetWidth * 0.94);
-              const fitH = Math.round(fitW / sourceRatio);
-              const dx = Math.round((targetWidth - fitW) / 2);
-              const dy = Math.round((targetHeight - fitH) / 2);
-              ctx.drawImage(img, 0, 0, w, h, dx, dy, fitW, fitH);
-            }
-          }
+          ctx.drawImage(img, 0, 0, w, h, dx, 0, drawW, drawH);
         }
 
         const normalizedDataUrl = canvas.toDataURL('image/jpeg', quality);
