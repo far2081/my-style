@@ -80,45 +80,21 @@ function resolveAccessibleAvatarUrl(url: string, req: VercelRequest): string {
 function resolveBridalReferenceUrl(url: string, isBridal: boolean, color?: string): string {
   if (!isBridal) return url;
 
-  // Patterns for legacy catalog images that lack head dupatta, are headless mannequins, or cropped at chin/waist
-  const deficientBridalPatterns = [
-    'Barat/dress_02',
-    'Barat/dress_03',
-    'Barat/dress_07',
-    'Barat/dress_08',
-    'Barat/dress_09',
-    'Barat/dress_10',
-    'Barat/dress_11',
-    'Barat/dress_12',
-    'Barat/dress_14',
-    'Bridal/dress_01',
-    'Bridal/dress_02',
-    'Bridal/dress_03',
-    'Bridal/dress_05',
-    'Bridal/dress_08',
-    'Bridal/dress_09',
-    'Bridal/dress_11',
-    'Bridal/dress_12',
-    'Bridal/dress_15',
-  ];
-
-  const needsUpgrade = deficientBridalPatterns.some((pattern) => url.includes(pattern));
-  if (!needsUpgrade) return url;
-
+  // Guarantee that every bridal request receives an authentic reference with a clean, single-person
+  // silhouette and an embroidered dupatta draped over the head and framing the face.
   const col = (color || '').toLowerCase();
-  if (col.includes('gold') || col.includes('champagne') || col.includes('tissue')) {
+  if (
+    col.includes('gold') ||
+    col.includes('champagne') ||
+    col.includes('tissue') ||
+    col.includes('ivory') ||
+    col.includes('white') ||
+    col.includes('silver')
+  ) {
     return '/images/categories/Bridal/dress_04.jpg';
-  } else if (col.includes('plum') || col.includes('magenta')) {
-    return '/images/categories/Barat/dress_06.jpg';
-  } else if (col.includes('silver') || col.includes('grey') || col.includes('white') || col.includes('ivory')) {
-    return '/images/categories/Bridal/dress_13.jpg';
-  } else if (col.includes('rust') || col.includes('copper') || col.includes('orange')) {
-    return '/images/categories/Bridal/dress_07.jpeg';
-  } else if (col.includes('ruby') || col.includes('scarlet')) {
-    return '/images/categories/Bridal/dress_14.jpg';
   }
 
-  // Default authentic full-length crimson velvet lehenga with sheer embroidered head-covering dupatta
+  // Pure crimson velvet & antique zardozi with sheer embroidered dupatta draped over head framing face
   return '/images/categories/Barat/dress_04.jpg';
 }
 
