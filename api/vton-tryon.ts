@@ -75,6 +75,135 @@ function resolveAccessibleAvatarUrl(url: string, req: VercelRequest): string {
   return cleaned;
 }
 
+
+// Helper: Resolves bridal garment reference to guarantee an authentic full-length image with head-covering dupatta
+function resolveBridalReferenceUrl(url: string, isBridal: boolean, color?: string): string {
+  if (!isBridal) return url;
+
+  // Patterns for legacy catalog images that lack head dupatta, are headless mannequins, or cropped at chin/waist
+  const deficientBridalPatterns = [
+    'Barat/dress_02',
+    'Barat/dress_03',
+    'Barat/dress_07',
+    'Barat/dress_08',
+    'Barat/dress_09',
+    'Barat/dress_10',
+    'Barat/dress_11',
+    'Barat/dress_12',
+    'Barat/dress_14',
+    'Bridal/dress_01',
+    'Bridal/dress_02',
+    'Bridal/dress_03',
+    'Bridal/dress_05',
+    'Bridal/dress_08',
+    'Bridal/dress_09',
+    'Bridal/dress_11',
+    'Bridal/dress_12',
+    'Bridal/dress_15',
+  ];
+
+  const needsUpgrade = deficientBridalPatterns.some((pattern) => url.includes(pattern));
+  if (!needsUpgrade) return url;
+
+  const col = (color || '').toLowerCase();
+  if (col.includes('gold') || col.includes('champagne') || col.includes('tissue')) {
+    return '/images/categories/Bridal/dress_04.jpg';
+  } else if (col.includes('plum') || col.includes('magenta')) {
+    return '/images/categories/Barat/dress_06.jpg';
+  } else if (col.includes('silver') || col.includes('grey') || col.includes('white') || col.includes('ivory')) {
+    return '/images/categories/Bridal/dress_13.jpg';
+  } else if (col.includes('rust') || col.includes('copper') || col.includes('orange')) {
+    return '/images/categories/Bridal/dress_07.jpeg';
+  } else if (col.includes('ruby') || col.includes('scarlet')) {
+    return '/images/categories/Bridal/dress_14.jpg';
+  }
+
+  // Default authentic full-length crimson velvet lehenga with sheer embroidered head-covering dupatta
+  return '/images/categories/Barat/dress_04.jpg';
+}
+
+// Helper: Second-Stage Image-Editing enhancement to drape matching embroidered dupatta over head while preserving face identity
+async function enhanceBridalHeadDupatta(
+  stage1Buffer: Buffer,
+  stage1Mime: string,
+  options: {
+    productName?: string;
+    dressType?: string;
+    color?: string;
+    fabric?: string;
+  }
+): Promise<{ buffer: Buffer; mime: string; enhanced: boolean }> {
+  const replicateToken = process.env.REPLICATE_API_TOKEN;
+  if (!replicateToken || replicateToken.trim() === '' || replicateToken.includes('placeholder')) {
+    return { buffer: stage1Buffer, mime: stage1Mime, enhanced: false };
+  }
+
+  try {
+    console.log('[VTON Second-Stage] Invoking neural image-editing model to refine head-covering dupatta drape...');
+    const stage1DataUrl = `data:${stage1Mime};base64,${stage1Buffer.toString('base64')}`;
+    const colorDesc = options.color || 'rich bridal';
+    const editPrompt = `add a matching ${colorDesc} sheer embroidered bridal dupatta gracefully draped over the head and framing the face, falling over shoulders, preserving exact facial identity, eyes, nose, lips, natural skin tone, and existing dress`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 18000); // 18s budget protects Vercel 60s limit
+
+    const replicateRes = await fetch('https://api.replicate.com/v1/predictions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${replicateToken.trim()}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'wait=16',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        version: '30c1d0b916a6f8efce20493f5d61ee27491ab2a60437c13c588468b9810ec23f',
+        input: {
+          image: stage1DataUrl,
+          prompt: editPrompt,
+          num_inference_steps: 25,
+          image_guidance_scale: 1.5,
+          guidance_scale: 7.5,
+        },
+      }),
+    });
+    clearTimeout(timeoutId);
+
+    if (replicateRes.ok) {
+      const pred = await replicateRes.json();
+      let outputUrl: string | null = null;
+      if (Array.isArray(pred.output) && pred.output.length > 0) {
+        outputUrl = pred.output[0];
+      } else if (typeof pred.output === 'string') {
+        outputUrl = pred.output;
+      }
+
+      if (outputUrl && outputUrl.startsWith('http')) {
+        const fetchEnhanced = await fetch(outputUrl, { signal: AbortSignal.timeout(8000) });
+        if (fetchEnhanced.ok) {
+          const ab = await fetchEnhanced.arrayBuffer();
+          const enhancedBuf = Buffer.from(ab);
+          if (enhancedBuf.length > 500) {
+            console.log('[VTON Second-Stage] Successfully synthesized head dupatta enhancement!', {
+              bytes: enhancedBuf.length,
+            });
+            return {
+              buffer: enhancedBuf,
+              mime: fetchEnhanced.headers.get('content-type') || 'image/jpeg',
+              enhanced: true,
+            };
+          }
+        }
+      }
+    } else {
+      console.warn('[VTON Second-Stage] Provider returned status:', replicateRes.status);
+    }
+  } catch (secErr: any) {
+    console.warn('[VTON Second-Stage] Second stage failed or timed out, gracefully falling back to Stage 1:', secErr.message);
+  }
+
+  return { buffer: stage1Buffer, mime: stage1Mime, enhanced: false };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -273,7 +402,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const rawAvatarUrl = primaryAvatarUrl.trim();
-  const accessibleClothingUrl = resolveAccessibleClothingUrl(clothing_image_url, req);
+  const verifiedClothingUrl = resolveBridalReferenceUrl(clothing_image_url, isBridalOrDupatta, cleanColor);
+  const accessibleClothingUrl = resolveAccessibleClothingUrl(verifiedClothingUrl, req);
 
   // Stage 2 Diagnostic: Garment URL Resolved
   console.log('[VTON Diagnostic Stage 2 - Garment Resolved]', {
@@ -530,11 +660,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Stage 7 Diagnostic: Result Received and Formatted
-    const finalResultUrl = `data:${resultMime};base64,${resultBuffer.toString('base64')}`;
+    
+    // Stage 6.5: Optional Second-Stage Head Dupatta Enhancement for Bridal Looks
+    let finalBuffer = resultBuffer;
+    let finalMime = resultMime;
+    let isEnhanced = false;
+
+    if (isBridalOrDupatta) {
+      const enhancementResult = await enhanceBridalHeadDupatta(resultBuffer, resultMime, {
+        productName: cleanName,
+        dressType: cleanType,
+        color: cleanColor,
+        fabric: cleanFabric,
+      });
+      if (enhancementResult.enhanced) {
+        finalBuffer = enhancementResult.buffer;
+        finalMime = enhancementResult.mime;
+        isEnhanced = true;
+      }
+    }
+
+    const finalResultUrl = `data:${finalMime};base64,${finalBuffer.toString('base64')}`;
     const jobId = `vton_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     console.log('[VTON Diagnostic Stage 7 - Generated Result Successfully Prepared]', {
-      resultBytes: resultBuffer.length,
+      resultBytes: finalBuffer.length,
       mimeType: resultMime,
       jobId,
     });
