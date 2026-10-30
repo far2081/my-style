@@ -76,26 +76,54 @@ function resolveAccessibleAvatarUrl(url: string, req: VercelRequest): string {
 }
 
 
-// Helper: Resolves bridal garment reference to guarantee an authentic full-length image with head-covering dupatta
-function resolveBridalReferenceUrl(url: string, isBridal: boolean, color?: string): string {
-  if (!isBridal) return url;
+// Helper: Checks if the selected bridal outfit reference image or metadata clearly shows a head-covered dupatta
+function isOutfitWithHeadCoveredDupatta(
+  clothingUrl: string,
+  name: string,
+  description: string,
+  dressType: string,
+  category: string
+): boolean {
+  const urlLower = (clothingUrl || '').toLowerCase();
+  const descLower = (description || '').toLowerCase();
+  const nameLower = (name || '').toLowerCase();
 
-  // Guarantee that every bridal request receives an authentic reference with a clean, single-person
-  // silhouette and an embroidered dupatta draped over the head and framing the face.
-  const col = (color || '').toLowerCase();
+  // Explicit text indicators that the outfit has a head-covering dupatta
   if (
-    col.includes('gold') ||
-    col.includes('champagne') ||
-    col.includes('tissue') ||
-    col.includes('ivory') ||
-    col.includes('white') ||
-    col.includes('silver')
+    descLower.includes('dupatta draped over the head') ||
+    descLower.includes('dupatta covering the head') ||
+    descLower.includes('head-covering dupatta') ||
+    descLower.includes('head-covered dupatta') ||
+    descLower.includes('head dupatta') ||
+    descLower.includes('veil draped over the head') ||
+    descLower.includes('veil draped over crown') ||
+    descLower.includes('matha-patti') ||
+    nameLower.includes('head dupatta')
   ) {
-    return '/images/categories/Bridal/dress_04.jpg';
+    return true;
   }
 
-  // Pure crimson velvet & antique zardozi with sheer embroidered dupatta draped over head framing face
-  return '/images/categories/Barat/dress_04.jpg';
+  // Known catalog reference images that clearly show an embroidered dupatta draped over the head
+  const headDupattaImagePatterns = [
+    'barat/dress_04',
+    'barat/dress_05',
+    'barat/dress_06',
+    'barat/dress_11',
+    'barat/dress_13',
+    'barat/dress_15',
+    'bridal/dress_01',
+    'bridal/dress_04',
+    'bridal/dress_06',
+    'bridal/dress_07',
+    'bridal/dress_10',
+    'bridal/dress_12',
+    'bridal/dress_13',
+    'bridal/dress_14',
+    'nikah/dress_01',
+    'nikah/dress_06',
+  ];
+
+  return headDupattaImagePatterns.some((pattern) => urlLower.includes(pattern));
 }
 
 // Helper: Second-Stage Image-Editing enhancement to drape matching embroidered dupatta over head while preserving face identity
@@ -285,45 +313,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     cleanName.toLowerCase().includes('lehenga') ||
     cleanName.toLowerCase().includes('dupatta');
 
-  // Dynamic prompt conditioning based on whether customer submitted a full-length silhouette or head/bust portrait
-  const clothingPrompt = isPortraitMode
-    ? [
-        `an authentic Pakistani ${cleanType}`,
-        cleanName ? `StyleMira ${cleanName}` : '',
-        cleanColor ? `${cleanColor} color` : '',
-        cleanFabric ? `${cleanFabric} fabric` : '',
-        'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
-        isBridalOrDupatta
-          ? 'wearing matching sheer embroidered dupatta draped over the head framing the face, headpiece and veil properly placed around head and shoulders'
-          : '',
-        'detailed embroidered neckline, embellished collar, and tailored bodice',
-        cleanDesc ? cleanDesc : '',
-      ]
-        .filter(Boolean)
-        .join(', ')
-    : [
-        `an authentic complete full-length Pakistani ${cleanType}`,
-        cleanName ? `StyleMira ${cleanName}` : '',
-        cleanColor ? `${cleanColor} color` : '',
-        cleanFabric ? `${cleanFabric} fabric` : '',
-        'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
-        isBridalOrDupatta
-          ? 'wearing matching sheer embroidered dupatta draped over the head framing the face, traditional embellished headpiece and veil gracefully falling over shoulders'
-          : '',
-        'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt extending all the way down to the hemline, feet and shoes fully visible on floor',
-        body_structure ? `tailored for a ${body_structure} silhouette` : '',
-        cleanDesc ? cleanDesc : '',
-      ]
-        .filter(Boolean)
-        .join(', ');
+  // Detect whether the selected reference outfit clearly shows a head-covered dupatta
+  const hasHeadCoveredDupatta = isOutfitWithHeadCoveredDupatta(
+    clothing_image_url || '',
+    cleanName,
+    cleanDesc,
+    cleanType,
+    category || ''
+  );
 
-  const avatarPrompt = isPortraitMode
-    ? (isBridalOrDupatta
-        ? 'a clear frontal portrait of a woman wearing a matching sheer embroidered bridal dupatta draped over her head framing her face, authentic jewelry and headpiece, natural human anatomy, realistic neck proportions, head and shoulders clearly visible'
-        : 'a clear frontal portrait of a woman, natural human anatomy, realistic neck proportions, head and shoulders clearly visible, natural posture')
-    : (isBridalOrDupatta
-        ? 'a complete full-body frontal portrait of a woman standing straight, wearing matching sheer embroidered bridal dupatta draped over her head framing her face, headpiece visible, natural human anatomy, realistic neck, complete standing body from head to feet, full flared skirt hemline and shoes completely visible on floor'
-        : 'a complete full-body frontal portrait of a woman standing straight, head, natural neck, full body, knees, legs, and feet completely visible from top to bottom, natural proportions');
+  // Focus prompt for bridal outfits with head-covering dupatta:
+  // Short, high-attention weight prompt requested by user
+  let clothingPrompt: string;
+  if (hasHeadCoveredDupatta) {
+    clothingPrompt = '(Pakistani bridal dupatta covering the head)+++; embroidered veil draped over the crown of the head, framing both sides of the face and falling over the shoulders and chest.';
+  } else {
+    clothingPrompt = isPortraitMode
+      ? [
+          `an authentic Pakistani ${cleanType}`,
+          cleanName ? `StyleMira ${cleanName}` : '',
+          cleanColor ? `${cleanColor} color` : '',
+          cleanFabric ? `${cleanFabric} fabric` : '',
+          'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
+          'detailed embroidered neckline, embellished collar, and tailored bodice',
+          cleanDesc ? cleanDesc : '',
+        ]
+          .filter(Boolean)
+          .join(', ')
+      : [
+          `an authentic complete full-length Pakistani ${cleanType}`,
+          cleanName ? `StyleMira ${cleanName}` : '',
+          cleanColor ? `${cleanColor} color` : '',
+          cleanFabric ? `${cleanFabric} fabric` : '',
+          'natural proportionate slender human neck, anatomically correct head-to-neck alignment, natural shoulders',
+          'embroidered bodice, tailored waist, long sleeves, full flared floor-length skirt extending all the way down to the hemline, feet and shoes fully visible on floor',
+          body_structure ? `tailored for a ${body_structure} silhouette` : '',
+          cleanDesc ? cleanDesc : '',
+        ]
+          .filter(Boolean)
+          .join(', ');
+  }
+
+  // Preserve the customer's original face, identity, skin tone and body as much as possible.
+  // Do NOT describe uncovered hair in avatar_prompt.
+  let avatarPrompt: string;
+  if (hasHeadCoveredDupatta) {
+    avatarPrompt = isPortraitMode
+      ? 'a clear frontal portrait of the person, preserving original face, identity, natural facial features, skin tone and realistic neck proportions, head and shoulders clearly visible'
+      : 'a complete full-body frontal portrait of the person standing straight, preserving original face, identity, natural facial features, skin tone and body proportions, natural anatomy, complete standing body from head to feet visible on floor';
+  } else {
+    avatarPrompt = isPortraitMode
+      ? 'a clear frontal portrait of a person, natural human anatomy, realistic neck proportions, head and shoulders clearly visible, natural posture'
+      : 'a complete full-body frontal portrait of a person standing straight, head, natural neck, full body, knees, legs, and feet completely visible from top to bottom, natural proportions';
+  }
   const avatarSex = 'female';
 
   const isFullLengthGarment =
@@ -359,6 +401,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     hasClothing: Boolean(clothing_image_url && clothing_image_url.trim()),
     clothingUrlPreview: clothing_image_url ? clothing_image_url.slice(0, 60) + '...' : 'none',
     productId: productId || 'unspecified',
+    hasHeadCoveredDupatta,
     clothingPrompt,
     avatarPrompt,
     avatarSex,
@@ -378,8 +421,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const rawAvatarUrl = primaryAvatarUrl.trim();
-  const verifiedClothingUrl = resolveBridalReferenceUrl(clothing_image_url, isBridalOrDupatta, cleanColor);
-  const accessibleClothingUrl = resolveAccessibleClothingUrl(verifiedClothingUrl, req);
+  // Send the actual selected bridal outfit image directly through clothing_image_url
+  const accessibleClothingUrl = resolveAccessibleClothingUrl(clothing_image_url, req);
 
   // Stage 2 Diagnostic: Garment URL Resolved
   console.log('[VTON Diagnostic Stage 2 - Garment Resolved]', {
@@ -642,7 +685,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let finalMime = resultMime;
     let isEnhanced = false;
 
-    if (isBridalOrDupatta) {
+    if (hasHeadCoveredDupatta) {
       const enhancementResult = await enhanceBridalHeadDupatta(resultBuffer, resultMime, {
         productName: cleanName,
         dressType: cleanType,
