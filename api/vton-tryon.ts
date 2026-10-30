@@ -208,6 +208,167 @@ async function enhanceBridalHeadDupatta(
   return { buffer: stage1Buffer, mime: stage1Mime, enhanced: false };
 }
 
+
+// ==============================================================================
+// PERFECT CORP / YOUCAM AI SCARF VIRTUAL TRY-ON V2.0 (BRIDAL DUPATTA PROVIDER)
+// ==============================================================================
+const PERFECT_CORP_SCARF_TASK_ENDPOINT = 'https://yce-api-01.makeupar.com/s2s/v2.0/task/scarf';
+const PERFECT_CORP_CREDIT_COST_ENDPOINT = 'https://yce-api-01.makeupar.com/s2s/v2.0/credit/feature-cost';
+const PERFECT_CORP_CREDIT_HISTORY_ENDPOINT = 'https://yce-api-01.makeupar.com/s2s/v2.0/credit/history';
+
+interface PerfectCorpScarfResult {
+  buffer: Buffer;
+  mime: string;
+  success: boolean;
+  taskId?: string;
+  balanceInfo?: any;
+  error?: string;
+}
+
+// Check available trial-unit / credit balance on Perfect Corp before testing
+async function checkPerfectCorpBalance(apiKey: string): Promise<{ ok: boolean; balanceInfo: any; error?: string }> {
+  try {
+    const res = await fetch(PERFECT_CORP_CREDIT_COST_ENDPOINT, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, balanceInfo: data };
+    } else {
+      const errText = await res.text().catch(() => '');
+      return { ok: false, balanceInfo: null, error: `HTTP ${res.status}: ${errText.slice(0, 200)}` };
+    }
+  } catch (e: any) {
+    return { ok: false, balanceInfo: null, error: e?.message || 'Network error querying balance' };
+  }
+}
+
+// Execute Perfect Corp AI Scarf Virtual Try-On V2.0
+async function applyPerfectCorpBridalDupatta(
+  srcFileUrl: string,
+  refFileUrl: string,
+  apiKey: string
+): Promise<PerfectCorpScarfResult> {
+  console.log('[Perfect Corp Scarf] Initiating trial balance check...');
+  const balanceCheck = await checkPerfectCorpBalance(apiKey);
+  console.log('[Perfect Corp Scarf] Balance check result:', balanceCheck);
+
+  if (!balanceCheck.ok) {
+    console.warn('[Perfect Corp Scarf] Trial balance check returned error:', balanceCheck.error);
+  }
+
+  console.log('[Perfect Corp Scarf] Submitting AI Scarf task...', {
+    endpoint: PERFECT_CORP_SCARF_TASK_ENDPOINT,
+    srcFileUrl: srcFileUrl.slice(0, 80) + '...',
+    refFileUrl: refFileUrl.slice(0, 80) + '...',
+    gender: 'female',
+  });
+
+  const submitRes = await fetch(PERFECT_CORP_SCARF_TASK_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey.trim()}`,
+      'Content-Type': 'application/json',
+    },
+    signal: AbortSignal.timeout(12000),
+    body: JSON.stringify({
+      src_file_url: srcFileUrl,
+      ref_file_url: refFileUrl,
+      gender: 'female',
+    }),
+  });
+
+  if (!submitRes.ok) {
+    const errText = await submitRes.text().catch(() => '');
+    throw new Error(`Perfect Corp API rejected task with HTTP ${submitRes.status}: ${errText.slice(0, 250)}`);
+  }
+
+  const submitJson = await submitRes.json();
+  const taskId = submitJson?.data?.task_id || submitJson?.task_id;
+  if (!taskId) {
+    throw new Error(`Perfect Corp returned no task_id in response: ${JSON.stringify(submitJson).slice(0, 200)}`);
+  }
+
+  console.log('[Perfect Corp Scarf] Task successfully created. task_id:', taskId);
+  console.log('[Perfect Corp Scarf] Polling for result...');
+
+  // Poll GET /s2s/v2.0/task/scarf/{task_id} every 2.5s up to 35 seconds
+  const pollUrl = `${PERFECT_CORP_SCARF_TASK_ENDPOINT}/${taskId}`;
+  let attempts = 0;
+  let resultImageUrl: string | null = null;
+
+  while (attempts < 14) {
+    await new Promise((r) => setTimeout(r, 2500));
+    attempts++;
+
+    const pollRes = await fetch(pollUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+      },
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (!pollRes.ok) {
+      console.warn(`[Perfect Corp Scarf] Poll attempt ${attempts} returned HTTP ${pollRes.status}`);
+      continue;
+    }
+
+    const pollJson = await pollRes.json();
+    const taskStatus = (
+      pollJson?.data?.task_status ||
+      pollJson?.task_status ||
+      pollJson?.status ||
+      ''
+    ).toString().toLowerCase();
+
+    console.log(`[Perfect Corp Scarf] Poll attempt ${attempts}: status = ${taskStatus}`);
+
+    if (taskStatus === 'success' || taskStatus === 'completed' || taskStatus === '200') {
+      resultImageUrl =
+        pollJson?.data?.result_url ||
+        pollJson?.data?.file_url ||
+        pollJson?.result_url ||
+        pollJson?.file_url;
+      break;
+    }
+
+    if (taskStatus === 'failed' || taskStatus === 'error') {
+      const errMsg = pollJson?.data?.error_msg || pollJson?.error_msg || pollJson?.error || 'Task failed';
+      throw new Error(`Perfect Corp AI Scarf task failed: ${errMsg}`);
+    }
+  }
+
+  if (!resultImageUrl) {
+    throw new Error(`Perfect Corp AI Scarf task timed out after ${attempts * 2.5} seconds without ready status.`);
+  }
+
+  console.log('[Perfect Corp Scarf] Task completed! Fetching result image binary from:', resultImageUrl.slice(0, 80) + '...');
+  const imgRes = await fetch(resultImageUrl, { signal: AbortSignal.timeout(10000) });
+  if (!imgRes.ok) {
+    throw new Error(`Failed to download Perfect Corp output image: HTTP ${imgRes.status}`);
+  }
+
+  const ab = await imgRes.arrayBuffer();
+  const buffer = Buffer.from(ab);
+  const mime = imgRes.headers.get('content-type') || 'image/jpeg';
+
+  console.log('[Perfect Corp Scarf] Output image successfully downloaded. Size:', buffer.length, 'bytes');
+
+  return {
+    buffer,
+    mime,
+    success: true,
+    taskId,
+    balanceInfo: balanceCheck.balanceInfo,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -680,22 +841,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Stage 7 Diagnostic: Result Received and Formatted
     
-    // Stage 6.5: Optional Second-Stage Head Dupatta Enhancement for Bridal Looks
+    // Stage 6.5: Bridal Head Dupatta Integration via Perfect Corp YouCam AI Scarf V2.0
     let finalBuffer = resultBuffer;
     let finalMime = resultMime;
-    let isEnhanced = false;
+    let providerName = 'RapidAPI Try-On Diffusion';
 
-    if (hasHeadCoveredDupatta) {
-      const enhancementResult = await enhanceBridalHeadDupatta(resultBuffer, resultMime, {
-        productName: cleanName,
-        dressType: cleanType,
-        color: cleanColor,
-        fabric: cleanFabric,
-      });
-      if (enhancementResult.enhanced) {
-        finalBuffer = enhancementResult.buffer;
-        finalMime = enhancementResult.mime;
-        isEnhanced = true;
+    const perfectCorpKey = process.env.PERFECT_CORP_API_KEY;
+
+    if (hasHeadCoveredDupatta && perfectCorpKey && perfectCorpKey.trim() && !perfectCorpKey.includes('placeholder')) {
+      console.log('[VTON Pipeline] Initiating Step 2: Perfect Corp YouCam AI Scarf Virtual Try-On V2.0 for bridal head dupatta...');
+      try {
+        // Step 2: Save generated outfit image securely using Supabase Storage integration and create accessible signed URL
+        const supabase = getSupabaseServerClient();
+        const stage1Path = `users/${userId || 'guest'}/tryon_stages/${jobId}_stage1.jpg`;
+        await supabase.storage
+          .from('products')
+          .upload(stage1Path, resultBuffer, { contentType: resultMime, upsert: true });
+
+        // Generate temporary accessible signed URL (valid for 1 hour)
+        const { data: signedData } = await supabase.storage
+          .from('products')
+          .createSignedUrl(stage1Path, 3600);
+
+        const srcFileUrl =
+          signedData?.signedUrl ||
+          supabase.storage.from('products').getPublicUrl(stage1Path).data.publicUrl;
+
+        console.log('[VTON Pipeline] Created accessible Stage 1 signed URL for Perfect Corp:', srcFileUrl.slice(0, 80) + '...');
+
+        // Steps 3-6: Call Perfect Corp AI Scarf API with src_file_url, ref_file_url, gender: "female"
+        const scarfResult = await applyPerfectCorpBridalDupatta(
+          srcFileUrl,
+          accessibleClothingUrl,
+          perfectCorpKey
+        );
+
+        if (scarfResult.success && scarfResult.buffer && scarfResult.buffer.length > 500) {
+          finalBuffer = scarfResult.buffer;
+          finalMime = scarfResult.mime;
+          providerName = 'Perfect Corp AI Scarf V2.0 + RapidAPI Try-On Diffusion';
+          console.log('[VTON Pipeline] Perfect Corp bridal head dupatta successfully synthesized and attached!');
+        }
+      } catch (pcErr: any) {
+        console.error('[VTON Pipeline] Perfect Corp AI Scarf provider failed or timed out:', pcErr.message);
+        console.warn('[VTON Pipeline] Gracefully preserving Stage 1 VTON outfit result.');
       }
     }
 
@@ -724,7 +913,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       resultImageUrl: finalResultUrl,
       productId: productId || null,
       userId: userId || 'guest',
-      provider: 'RapidAPI Try-On Diffusion',
+      provider: providerName,
       createdAt: new Date().toISOString(),
       fitAssessment: 'Photorealistic neural drape synthesized with RapidAPI Try-On Diffusion.',
     });
